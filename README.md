@@ -2,7 +2,7 @@
 
 A [GitHub Action](https://github.com/marketplace/actions/docker-remote-deployment) that supports docker-compose and Docker Swarm deployments on a remote host using SSH.
 
-The Action is adapted from work by [wshihadeh](https://github.com/wshihadeh/docker-deployment-action) and [TapTap21/docker-remote-deployment-action)
+The Action is adapted from work by [wshihadeh](https://github.com/wshihadeh/docker-deployment-action) and [TapTap21](https://github.com/TapTap21/docker-remote-deployment-action)
 
 ## Example
 
