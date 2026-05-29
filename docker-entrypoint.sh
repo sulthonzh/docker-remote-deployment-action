@@ -38,11 +38,11 @@ if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
 fi
 
 if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
-  INPUT_STACK_FILE_NAME=docker-compose.yaml
+  INPUT_STACK_FILE_NAME=docker-compose.yml
 fi
 
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
-  INPUT_KEEP_FILES=4
+  INPUT_KEEP_FILES=4  # 3+1 because tail -n +N skips N-1
 else
   INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
 fi
@@ -94,8 +94,8 @@ eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
 
 echo "Add known hosts"
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
+ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null
 
 set context
 echo "Create docker context"
@@ -124,18 +124,18 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
   execute_ssh "ln -nfs $INPUT_DEPLOY_PATH/stacks/$FILE_NAME $INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME"
   execute_ssh "ls -t $INPUT_DEPLOY_PATH/stacks/docker-stack-* 2>/dev/null |  tail -n +$INPUT_KEEP_FILES | xargs rm --  2>/dev/null || true"
 
-  if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ $INPUT_PULL_IMAGES_FIRST = 'true' ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    execute_ssh ${DEPLOYMENT_COMMAND} "pull"
+  if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    execute_ssh "${DEPLOYMENT_COMMAND}" "pull"
   fi
 
-  if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
+  if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    execute_ssh "${DEPLOYMENT_COMMAND} ${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS}" 2>&1
   fi
 
-  execute_ssh ${DEPLOYMENT_COMMAND} "$INPUT_ARGS" 2>&1
+  execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
-  ${DEPLOYMENT_COMMAND} ${INPUT_ARGS} 2>&1
+  eval "${DEPLOYMENT_COMMAND} ${INPUT_ARGS}" 2>&1
 fi
 
 

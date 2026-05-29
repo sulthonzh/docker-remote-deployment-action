@@ -43,7 +43,7 @@ Below is a brief example on how the action can be used:
 ### `stack_file_name`
   Docker stack file used. Default is docker-compose.yml.
 ### `keep_files`
-  Number of the files to be kept on the server. Default is 3.
+  Number of the files to be kept on the server. Default is 3 (internally 4 due to `tail -n +N` offset).
 ### `docker_prune`
   A boolean input to trigger docker prune command. Default is false.
 ### `pre_deployment_command_args`
