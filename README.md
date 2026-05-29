@@ -20,7 +20,7 @@ Below is a brief example on how the action can be used:
     deploy_path: /root/my-deployment
     stack_file_name: docker-compose.yaml
     keep_files: 5
-    args: my_applicaion
+    args: my_application
 ```
 
 ## Input Configurations
@@ -47,7 +47,7 @@ Below is a brief example on how the action can be used:
 ### `docker_prune`
   A boolean input to trigger docker prune command. Default is false.
 ### `pre_deployment_command_args`
-  The args for the pre deploument command.
+  The args for the pre deployment command.
 ### `pull_images_first`
   Pull docker images before deploying. Default is false.
 ### `docker_registry_username`
