@@ -42,9 +42,14 @@ if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
 fi
 
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
-  INPUT_KEEP_FILES=4
+  INPUT_KEEP_FILES=3
 else
-  INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
+  # Validate that keep_files is a positive number
+  if ! [[ "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]] || [ "$INPUT_KEEP_FILES" -lt 1 ]; then
+    echo "Error: keep_files must be a positive number, got: $INPUT_KEEP_FILES"
+    exit 1
+  fi
+  INPUT_KEEP_FILES="$INPUT_KEEP_FILES"
 fi
 
 if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
@@ -102,11 +107,26 @@ if ! ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_know
 fi
 
 echo "Create docker context"
-docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
+if ! docker context ls | grep -q "remote"; then
+  docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
+fi
 docker context use remote
+
+# Set up trap to clean up context on exit
+cleanup() {
+  if docker context ls | grep -q "remote"; then
+    docker context use default || true
+    docker context rm remote --force || true
+  fi
+}
+trap cleanup EXIT
 
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
+  if [ -z "$INPUT_DOCKER_REGISTRY_URI" ]; then
+    echo "Error: docker_registry_uri is required when using docker registry credentials"
+    exit 1
+  fi
   echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"
 fi
 
@@ -116,6 +136,12 @@ fi
 
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
   execute_ssh "mkdir -p $INPUT_DEPLOY_PATH/stacks || true"
+  # Validate stack file path to prevent directory traversal
+  if [[ "$INPUT_STACK_FILE_NAME" == *..* ]] || [[ "$INPUT_STACK_FILE_NAME" == /* ]]; then
+    echo "Error: Invalid stack file path: $INPUT_STACK_FILE_NAME"
+    exit 1
+  fi
+  
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 
   scp -i "$HOME/.ssh/id_rsa" \
@@ -135,7 +161,7 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
     execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
-  execute_ssh ${DEPLOYMENT_COMMAND} "$INPUT_ARGS" 2>&1
+  execute_ssh "$DEPLOYMENT_COMMAND" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
   ${DEPLOYMENT_COMMAND} ${INPUT_ARGS} 2>&1
