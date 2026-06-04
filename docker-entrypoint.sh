@@ -1,12 +1,24 @@
 #!/bin/sh
 set -eu
 
+# Track ssh-agent PID for cleanup
+_AGENT_PID=""
+
+cleanup() {
+  docker context rm -f remote 2>/dev/null || true
+  if [ -n "$_AGENT_PID" ]; then
+    kill "$_AGENT_PID" 2>/dev/null || true
+  fi
+  rm -f "$HOME/.ssh/id_rsa" "$HOME/.ssh/id_rsa.pub"
+}
+trap cleanup EXIT
+
 execute_ssh(){
-  echo "Execute Over SSH: $@"
-  ssh -q -t -i "$HOME/.ssh/id_rsa" \
+  echo "Execute Over SSH: $*"
+  ssh -q -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
-      -p $INPUT_REMOTE_DOCKER_PORT \
-      -o StrictHostKeyChecking=no "$INPUT_REMOTE_DOCKER_HOST" "$@"
+      -p "$INPUT_REMOTE_DOCKER_PORT" \
+      -o StrictHostKeyChecking=no "$INPUT_REMOTE_DOCKER_HOST" "$*"
 }
 
 if [ -z "${INPUT_REMOTE_DOCKER_PORT+x}" ]; then
@@ -42,7 +54,7 @@ if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
 fi
 
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
-  INPUT_KEEP_FILES=4
+  INPUT_KEEP_FILES=3
 else
   INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
 fi
@@ -89,17 +101,19 @@ printf '%s\n' "$INPUT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
 chmod 600 ~/.ssh/id_rsa
 printf '%s\n' "$INPUT_SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
 chmod 600 ~/.ssh/id_rsa.pub
-chmod 600 ~/.ssh
+chmod 700 ~/.ssh
 eval $(ssh-agent)
+_AGENT_PID="$SSH_AGENT_PID"
 ssh-add ~/.ssh/id_rsa
 
 echo "Add known hosts"
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
+ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || true
 
 # set context  # This command was causing issues and is commented out
 echo "Create docker context"
-docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
+docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>/dev/null || \
+  docker context update remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>/dev/null || true
 docker context use remote
 
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
@@ -107,29 +121,35 @@ if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGI
   echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"
 fi
 
-if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
+if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
   yes | docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
 fi
 
-if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
+if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
   execute_ssh "mkdir -p $INPUT_DEPLOY_PATH/stacks || true"
-  FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
+  FILE_NAME="docker-stack-$(date +%Y%m%d%H%M%S).yaml"
+
+  # Check local stack file exists before SCP
+  if [ ! -f "$INPUT_STACK_FILE_NAME" ]; then
+    echo "Error: Stack file '$INPUT_STACK_FILE_NAME' not found"
+    exit 1
+  fi
 
   scp -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
-      -P $INPUT_REMOTE_DOCKER_PORT \
-      $INPUT_STACK_FILE_NAME "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
+      -P "$INPUT_REMOTE_DOCKER_PORT" \
+      "$INPUT_STACK_FILE_NAME" "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
 
   execute_ssh "ln -nfs $INPUT_DEPLOY_PATH/stacks/$FILE_NAME $INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME"
-  execute_ssh "ls -t $INPUT_DEPLOY_PATH/stacks/docker-stack-* 2>/dev/null |  tail -n +$INPUT_KEEP_FILES | xargs rm --  2>/dev/null || true"
+  execute_ssh "find '$INPUT_DEPLOY_PATH/stacks' -name 'docker-stack-*.yaml' -print0 2>/dev/null | sort -zr | tail -zn +$INPUT_KEEP_FILES | xargs -0 rm -- 2>/dev/null || true"
 
-  if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ $INPUT_PULL_IMAGES_FIRST = 'true' ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
+  if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
     execute_ssh "${DEPLOYMENT_COMMAND}" "pull"
   fi
 
-  if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
+  if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    execute_ssh "${DEPLOYMENT_COMMAND} $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
   execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
