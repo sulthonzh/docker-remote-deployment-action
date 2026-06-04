@@ -1,0 +1,5 @@
+{
+  "name": "invalid-package",
+  "version": "1.0.0",
+  "main": "missing.js"
+}

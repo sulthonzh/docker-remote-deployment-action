@@ -1,0 +1,6 @@
+node_modules
+
+dist
+.tmp-test-pkgcheck
+*.js.map
+.DS_Store
