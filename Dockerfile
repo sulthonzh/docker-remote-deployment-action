@@ -1,4 +1,4 @@
-FROM docker/compose:1.29.2
+FROM docker:27-cli
 
 LABEL 'name'='Docker Deployment Action'
 LABEL 'com.github.actions.name'='Docker Deployment'

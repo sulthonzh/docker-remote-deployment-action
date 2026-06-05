@@ -38,7 +38,7 @@ if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
 fi
 
 if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
-  INPUT_STACK_FILE_NAME=docker-compose.yaml
+  INPUT_STACK_FILE_NAME=docker-compose.yml
 fi
 
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
@@ -108,7 +108,7 @@ if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGI
 fi
 
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
-  yes | docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
+  docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f 2>&1
 fi
 
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
@@ -137,3 +137,10 @@ else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
   "${DEPLOYMENT_COMMAND}" "${INPUT_ARGS}" 2>&1
 fi
+
+# Cleanup: remove SSH keys from memory and disk on exit
+cleanup() {
+  ssh-agent -k 2>/dev/null || true
+  rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
+}
+trap cleanup EXIT
