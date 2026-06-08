@@ -7,6 +7,10 @@ execute_ssh(){
       -o UserKnownHostsFile=/dev/null \
       -p "$INPUT_REMOTE_DOCKER_PORT" \
       -o StrictHostKeyChecking=no "$INPUT_REMOTE_DOCKER_HOST" "$*"
+  if [ $? -ne 0 ]; then
+    echo "Error: SSH command failed: $*"
+    exit 1
+  fi
 }
 
 if [ -z "${INPUT_REMOTE_DOCKER_PORT+x}" ]; then
@@ -30,6 +34,12 @@ fi
 
 if [ -z "${INPUT_ARGS+x}" ]; then
   echo "Input input_args is required!"
+  exit 1
+fi
+
+# Validate that args don't contain shell metacharacters
+if echo "$INPUT_ARGS" | grep -q '[;&|`$()]'; then
+  echo "Error: input_args contains potentially dangerous shell metacharacters"
   exit 1
 fi
 
@@ -90,25 +100,44 @@ chmod 600 ~/.ssh/id_rsa
 printf '%s\n' "$INPUT_SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
 chmod 600 ~/.ssh/id_rsa.pub
 chmod 700 ~/.ssh
-eval $(ssh-agent)
-ssh-add ~/.ssh/id_rsa
+eval $(ssh-agent -s) > /dev/null 2>&1 || {
+  echo "Error: Failed to start SSH agent"
+  exit 1
+}
+ssh-add ~/.ssh/id_rsa 2>/dev/null || {
+  echo "Error: Failed to add SSH key to agent"
+  exit 1
+}
 
 echo "Add known hosts"
 ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || true
 
-# set context  # This command was causing issues and is commented out
 echo "Create docker context"
-docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
-docker context use remote
+if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"; then
+  echo "Error: Failed to create Docker context"
+  exit 1
+fi
+
+if ! docker context use remote; then
+  echo "Error: Failed to use Docker context"
+  exit 1
+fi
 
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
-  echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"
+  if ! echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"; then
+    echo "Error: Docker login failed"
+    exit 1
+  fi
 fi
 
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
-  yes | docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
+  echo "Warning: Running docker system prune -a (this will remove unused containers, networks, images, and volumes)"
+  if ! yes | docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a; then
+    echo "Error: Docker system prune failed"
+    exit 1
+  fi
 fi
 
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
@@ -125,15 +154,25 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "ls -t $INPUT_DEPLOY_PATH/stacks/docker-stack-* 2>/dev/null | tail -n +$INPUT_KEEP_FILES | xargs rm --  2>/dev/null || true"
 
   if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    echo "Pulling images before deployment..."
     execute_ssh "${DEPLOYMENT_COMMAND}" "pull"
   fi
 
   if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
-    execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
+    echo "Running pre-deployment commands..."
+    # Quote pre-deployment args properly
+    PRE_DEPLOY_ARGS=$(printf '%q' "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS")
+    execute_ssh "${DEPLOYMENT_COMMAND}" "$PRE_DEPLOY_ARGS"
   fi
 
-  execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
+  echo "Executing deployment command..."
+  execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS"
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
-  "${DEPLOYMENT_COMMAND}" "${INPUT_ARGS}" 2>&1
+  if ! "${DEPLOYMENT_COMMAND}" "${INPUT_ARGS}"; then
+    echo "Error: Deployment command failed"
+    exit 1
+  fi
 fi
+
+echo "Deployment completed successfully!"
