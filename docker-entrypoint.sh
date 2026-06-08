@@ -130,11 +130,16 @@ eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
 
 echo "Add known hosts"
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
+ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: Could not scan SSH host key"
+ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || echo "Warning: Could not update system known_hosts"
 
 set context
 echo "Create docker context"
+# Remove existing context if it exists to avoid conflicts
+if docker context ls 2>/dev/null | grep -q "remote"; then
+  docker context rm remote -f 2>/dev/null || echo "Warning: Could not remove existing remote context"
+fi
+
 if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"; then
   echo "Error: Failed to create docker context"
   exit 1
@@ -147,10 +152,16 @@ fi
 
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
-  if ! echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"; then
+  # Use a temporary file for the password to avoid leaving it in process lists
+  temp_passwd_file="$(mktemp)"
+  printf '%s' "$INPUT_DOCKER_REGISTRY_PASSWORD" > "$temp_passwd_file"
+  chmod 600 "$temp_passwd_file"
+  if ! docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-file "$temp_passwd_file" "$INPUT_DOCKER_REGISTRY_URI"; then
     echo "Error: Docker login failed"
+    rm -f "$temp_passwd_file"
     exit 1
   fi
+  rm -f "$temp_passwd_file"
 fi
 
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
@@ -187,6 +198,22 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
   fi
 
   execute_ssh ${DEPLOYMENT_COMMAND} "$INPUT_ARGS" 2>&1
+# Cleanup function to remove SSH keys and agent
+cleanup() {
+  echo "Cleaning up..."
+  # Remove SSH keys
+  rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
+  # Kill SSH agent if running
+  if [ -n "$SSH_AGENT_PID" ]; then
+    kill $SSH_AGENT_PID 2>/dev/null || true
+  fi
+  # Remove docker context
+  docker context rm remote -f 2>/dev/null || true
+}
+
+# Set trap for cleanup
+trap cleanup EXIT
+
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
   ${DEPLOYMENT_COMMAND} ${INPUT_ARGS} 2>&1
