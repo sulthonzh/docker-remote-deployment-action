@@ -3,10 +3,13 @@ set -eu
 
 execute_ssh(){
   echo "Execute Over SSH: $@"
-  ssh -q -t -i "$HOME/.ssh/id_rsa" \
+  if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -p $INPUT_REMOTE_DOCKER_PORT \
-      -o StrictHostKeyChecking=no "$INPUT_REMOTE_DOCKER_HOST" "$@"
+      -o StrictHostKeyChecking=no "$INPUT_REMOTE_DOCKER_HOST" "$@"; then
+    echo "Error: SSH command failed: $@"
+    exit 1
+  fi
 }
 
 if [ -z "${INPUT_REMOTE_DOCKER_PORT+x}" ]; then
@@ -39,6 +42,39 @@ fi
 
 if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
   INPUT_STACK_FILE_NAME=docker-compose.yaml
+fi
+
+# Input validation to prevent shell injection and path traversal
+validate_input() {
+  local input_name="$1"
+  local input_value="$2"
+  
+  # Check for shell metacharacters that could cause command injection
+  if [[ "$input_value" =~ [;&|`$()"'] ]]; then
+    echo "Error: $input_name contains dangerous characters: $input_value"
+    exit 1
+  fi
+  
+  # Check for path traversal attempts
+  if [[ "$input_value" =~ \.\. ]]; then
+    echo "Error: $input_name contains path traversal attempts: $input_value"
+    exit 1
+  fi
+}
+
+validate_input "args" "$INPUT_ARGS"
+validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
+validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
+
+# Ensure numeric inputs are valid numbers
+if [[ ! "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
+  echo "Error: remote_docker_port must be a number: $INPUT_REMOTE_DOCKER_PORT"
+  exit 1
+fi
+
+if [[ ! "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
+  echo "Error: keep_files must be a number: $INPUT_KEEP_FILES"
+  exit 1
 fi
 
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
@@ -99,16 +135,34 @@ ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
 
 set context
 echo "Create docker context"
-docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
-docker context use remote
+if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"; then
+  echo "Error: Failed to create docker context"
+  exit 1
+fi
+
+if ! docker context use remote; then
+  echo "Error: Failed to switch to docker context"
+  exit 1
+fi
 
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
-  echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"
+  if ! echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"; then
+    echo "Error: Docker login failed"
+    exit 1
+  fi
 fi
 
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
-  yes | docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
+  echo "WARNING: This will remove unused images, containers, networks, and volumes."
+  echo "This is a destructive operation that cannot be undone."
+  read -p "Are you sure you want to continue? (y/N): " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
+  else
+    echo "Docker prune operation cancelled."
+  fi
 fi
 
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
