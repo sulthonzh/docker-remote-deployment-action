@@ -1,0 +1,176 @@
+"use strict";
+// prompt-bisect: Core runner — compare actual outputs against golden set
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BisectRunner = void 0;
+const types_1 = require("./types");
+const store_1 = require("./store");
+const similarity_1 = require("./similarity");
+class BisectRunner {
+    store;
+    config;
+    constructor(config) {
+        this.config = { ...types_1.DEFAULT_CONFIG, ...config };
+        this.store = new store_1.SnapshotStore(this.config);
+    }
+    /**
+     * Run a regression check: compare new outputs against the golden set.
+     * Pass a `fetchOutput` function that returns the actual output for each prompt.
+     */
+    async run(fetchOutput) {
+        const start = Date.now();
+        const golden = this.store.load();
+        const diffs = [];
+        for (const snapshot of golden.prompts) {
+            try {
+                const actual = await fetchOutput(snapshot);
+                const similarity = this.computeSimilarity(snapshot.output, actual);
+                const status = this.getStatus(similarity);
+                diffs.push({
+                    promptId: snapshot.id,
+                    similarity,
+                    status,
+                    expected: snapshot.output,
+                    actual,
+                    details: status === 'drift'
+                        ? this.describeDiff(snapshot.output, actual, similarity)
+                        : undefined,
+                });
+                // Save to history for bisect
+                this.store.saveHistory({
+                    ...snapshot,
+                    output: actual,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+            catch (err) {
+                diffs.push({
+                    promptId: snapshot.id,
+                    similarity: 0,
+                    status: 'error',
+                    expected: snapshot.output,
+                    actual: '',
+                    details: err instanceof Error ? err.message : String(err),
+                });
+            }
+        }
+        const durationMs = Date.now() - start;
+        return {
+            timestamp: new Date().toISOString(),
+            total: golden.prompts.length,
+            passed: diffs.filter(d => d.status === 'match').length,
+            failed: diffs.filter(d => d.status === 'drift').length,
+            errors: diffs.filter(d => d.status === 'error').length,
+            diffs,
+            durationMs,
+        };
+    }
+    /**
+     * Run a dry comparison against provided outputs (no fetching).
+     */
+    compare(outputs) {
+        const start = Date.now();
+        const golden = this.store.load();
+        const diffs = [];
+        for (const snapshot of golden.prompts) {
+            const provided = outputs.find(o => o.id === snapshot.id);
+            if (!provided) {
+                diffs.push({
+                    promptId: snapshot.id,
+                    similarity: 0,
+                    status: 'error',
+                    expected: snapshot.output,
+                    actual: '',
+                    details: 'No output provided for this prompt',
+                });
+                continue;
+            }
+            const similarity = this.computeSimilarity(snapshot.output, provided.output);
+            const status = this.getStatus(similarity);
+            diffs.push({
+                promptId: snapshot.id,
+                similarity,
+                status,
+                expected: snapshot.output,
+                actual: provided.output,
+                details: status === 'drift'
+                    ? this.describeDiff(snapshot.output, provided.output, similarity)
+                    : undefined,
+            });
+        }
+        const durationMs = Date.now() - start;
+        return {
+            timestamp: new Date().toISOString(),
+            total: golden.prompts.length,
+            passed: diffs.filter(d => d.status === 'match').length,
+            failed: diffs.filter(d => d.status === 'drift').length,
+            errors: diffs.filter(d => d.status === 'error').length,
+            diffs,
+            durationMs,
+        };
+    }
+    /**
+     * Bisect: find when a prompt's output first drifted.
+     * Walks through history chronologically and finds the first point where
+     * similarity dropped below threshold.
+     */
+    bisect(promptId) {
+        const history = this.store.loadHistory(promptId);
+        if (history.length === 0)
+            return null;
+        const golden = this.store.load();
+        const baseline = golden.prompts.find(p => p.id === promptId);
+        if (!baseline)
+            return null;
+        const points = [];
+        for (const snap of history) {
+            const similarity = this.computeSimilarity(baseline.output, snap.output);
+            points.push({
+                timestamp: snap.timestamp,
+                snapshotId: `${snap.id}__${snap.timestamp.replace(/[:.]/g, '-')}`,
+                similarity,
+                changed: similarity < this.config.threshold,
+            });
+        }
+        // Find first drift point
+        const firstDrift = points.find(p => p.changed);
+        return {
+            promptId,
+            points,
+            regressionAt: firstDrift?.timestamp,
+            regressionSnapshotId: firstDrift?.snapshotId,
+        };
+    }
+    computeSimilarity(expected, actual) {
+        switch (this.config.method) {
+            case 'structured':
+                return (0, similarity_1.structuredSimilarity)(expected, actual);
+            case 'string':
+                return (0, similarity_1.stringSimilarity)(expected, actual);
+            default:
+                return (0, similarity_1.combinedSimilarity)(expected, actual);
+        }
+    }
+    getStatus(similarity) {
+        if (similarity >= this.config.threshold)
+            return 'match';
+        return 'drift';
+    }
+    describeDiff(expected, actual, similarity) {
+        const lines = [];
+        lines.push(`Similarity: ${(similarity * 100).toFixed(1)}% (threshold: ${(this.config.threshold * 100).toFixed(1)}%)`);
+        const expectedLines = expected.split('\n');
+        const actualLines = actual.split('\n');
+        const maxLines = Math.max(expectedLines.length, actualLines.length);
+        let changedLines = 0;
+        for (let i = 0; i < maxLines; i++) {
+            const e = expectedLines[i];
+            const a = actualLines[i];
+            if (e !== a)
+                changedLines++;
+        }
+        lines.push(`Lines changed: ${changedLines}/${maxLines}`);
+        return lines.join('\n');
+    }
+}
+exports.BisectRunner = BisectRunner;
+//# sourceMappingURL=runner.js.map
