@@ -1,6 +1,16 @@
 #!/bin/sh
 set -eu
 
+# Cleanup trap: remove SSH keys, kill ssh-agent, remove docker context
+cleanup() {
+  rm -f "$HOME/.ssh/id_rsa" "$HOME/.ssh/id_rsa.pub" 2>/dev/null || true
+  if [ -n "${SSH_AGENT_PID:-}" ]; then
+    kill "$SSH_AGENT_PID" 2>/dev/null || true
+  fi
+  docker context rm -f remote 2>/dev/null || true
+}
+trap cleanup EXIT
+
 execute_ssh(){
   echo "Execute Over SSH: $*"
   ssh -q -i "$HOME/.ssh/id_rsa" \
@@ -135,5 +145,7 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
-  "${DEPLOYMENT_COMMAND}" "${INPUT_ARGS}" 2>&1
+  # shellcheck disable=SC2086 — DEPLOYMENT_COMMAND must be unquoted for word splitting
+  # (it contains command + flags as a single string)
+  ${DEPLOYMENT_COMMAND} ${INPUT_ARGS} 2>&1
 fi
