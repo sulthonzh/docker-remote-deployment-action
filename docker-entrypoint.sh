@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -euo pipefail
 
 execute_ssh(){
   echo "Execute Over SSH: $*"
@@ -28,7 +28,7 @@ if [ -z "${INPUT_SSH_PRIVATE_KEY+x}" ]; then
     exit 1
 fi
 
-if [ -z "${INPUT_ARGS+x}" ]; then
+if [ -z "${INPUT_ARGS+x}" ] || [ -z "$INPUT_ARGS" ]; then
   echo "Input input_args is required!"
   exit 1
 fi
@@ -44,6 +44,12 @@ fi
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
   INPUT_KEEP_FILES=4
 else
+  case "$INPUT_KEEP_FILES" in
+    ''|*[!0-9]*)
+      echo "Error: keep_files must be a positive integer, got: '$INPUT_KEEP_FILES'"
+      exit 1
+      ;;
+  esac
   INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
 fi
 
@@ -94,11 +100,12 @@ eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
 
 echo "Add known hosts"
-ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || true
+ssh-keyscan -T 10 -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+ssh-keyscan -T 10 -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || true
 
 # set context  # This command was causing issues and is commented out
 echo "Create docker context"
+docker context rm -f remote 2>/dev/null || true
 docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
 docker context use remote
 
@@ -135,5 +142,6 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
-  "${DEPLOYMENT_COMMAND}" "${INPUT_ARGS}" 2>&1
+  # shellcheck disable=SC2086
+  ${DEPLOYMENT_COMMAND} ${INPUT_ARGS} 2>&1
 fi
