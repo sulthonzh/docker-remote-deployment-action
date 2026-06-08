@@ -20,7 +20,7 @@ Below is a brief example on how the action can be used:
     deploy_path: /root/my-deployment
     stack_file_name: docker-compose.yaml
     keep_files: 5
-    args: my_applicaion
+    args: my_application
 ```
 
 ## Input Configurations
