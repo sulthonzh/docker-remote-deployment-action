@@ -36,7 +36,7 @@ inputs:
     description: A boolean input to trigger docker prune command. Default is false.
     required: false
   pre_deployment_command_args:
-    description: The args for the pre deploument command.
+    description: The args for the pre deployment command.
     required: false
   pull_images_first:
     description: Pull docker images before deploying. Default is false.
