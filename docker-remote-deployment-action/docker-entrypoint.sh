@@ -49,6 +49,12 @@ validate_input() {
   local input_name="$1"
   local input_value="$2"
   
+  # Check for empty input
+  if [ -z "$input_value" ]; then
+    echo "Error: $input_name cannot be empty"
+    exit 1
+  fi
+  
   # Check for shell metacharacters that could cause command injection
   if [[ "$input_value" =~ [;&|`$()"'] ]]; then
     echo "Error: $input_name contains dangerous characters: $input_value"
@@ -135,58 +141,66 @@ ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
 
 set context
 echo "Create docker context"
-if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"; then
+if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>&1; then
   echo "Error: Failed to create docker context"
-  exit 1
+  # Try removing existing context first and recreate
+  docker context rm remote --force 2>/dev/null || true
+  if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>&1; then
+    echo "Error: Failed to create docker context after cleanup"
+    exit 1
+  fi
 fi
 
-if ! docker context use remote; then
+if ! docker context use remote 2>&1; then
   echo "Error: Failed to switch to docker context"
   exit 1
 fi
 
+echo "Docker context set successfully to remote"
+
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
-  if ! echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI"; then
+  if ! echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI" 2>&1; then
     echo "Error: Docker login failed"
     exit 1
   fi
+  echo "Docker login successful"
 fi
 
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
   echo "WARNING: This will remove unused images, containers, networks, and volumes."
   echo "This is a destructive operation that cannot be undone."
-  read -p "Are you sure you want to continue? (y/N): " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
-  else
-    echo "Docker prune operation cancelled."
+  echo "Proceeding with automated docker system prune..."
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a; then
+    echo "Error: Docker prune failed"
+    exit 1
   fi
+  echo "Docker prune completed successfully."
+fi
 fi
 
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
-  execute_ssh "mkdir -p $INPUT_DEPLOY_PATH/stacks || true"
+  execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH/stacks\" || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 
   scp -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -P $INPUT_REMOTE_DOCKER_PORT \
-      $INPUT_STACK_FILE_NAME "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
+      \"$INPUT_STACK_FILE_NAME\" \"$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME\"
 
-  execute_ssh "ln -nfs $INPUT_DEPLOY_PATH/stacks/$FILE_NAME $INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME"
-  execute_ssh "ls -t $INPUT_DEPLOY_PATH/stacks/docker-stack-* 2>/dev/null |  tail -n +$INPUT_KEEP_FILES | xargs rm --  2>/dev/null || true"
+  execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH/stacks/$FILE_NAME\" \"$INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME\""
+  execute_ssh "find \"$INPUT_DEPLOY_PATH/stacks\" -name 'docker-stack-*' -printf '%T@ %p\n' | sort -nr | tail -n +$INPUT_KEEP_FILES | cut -d' ' -f2- | xargs rm -f --  2>/dev/null || true"
 
   if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ $INPUT_PULL_IMAGES_FIRST = 'true' ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    execute_ssh ${DEPLOYMENT_COMMAND} "pull"
+    execute_ssh "$DEPLOYMENT_COMMAND" "pull"
   fi
 
   if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
     execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
-  execute_ssh ${DEPLOYMENT_COMMAND} "$INPUT_ARGS" 2>&1
+  execute_ssh "$DEPLOYMENT_COMMAND" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
   ${DEPLOYMENT_COMMAND} ${INPUT_ARGS} 2>&1
