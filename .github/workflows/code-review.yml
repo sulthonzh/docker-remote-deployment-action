@@ -25,7 +25,7 @@ jobs:
     outputs:
       secrets_found: ${{ steps.scan.outputs.found }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Scan diff for secrets
@@ -47,7 +47,7 @@ jobs:
     outputs:
       approved: ${{ steps.review.outputs.approved }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Detect project context
@@ -83,7 +83,7 @@ jobs:
     outputs:
       passed: ${{ steps.gate.outputs.passed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Run quality checks
@@ -109,7 +109,7 @@ jobs:
       needs.quality-gate.outputs.passed == 'true' &&
       github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Approve and merge
         uses: sulthonzh/code-reviewer@main
         with:
@@ -123,7 +123,7 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Detect and release
