@@ -164,19 +164,17 @@ if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGI
   rm -f "$temp_passwd_file"
 fi
 
-if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
+if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
   echo "WARNING: This will remove unused images, containers, networks, and volumes."
   echo "This is a destructive operation that cannot be undone."
-  read -p "Are you sure you want to continue? (y/N): " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a 2>&1
-  else
-    echo "Docker prune operation cancelled."
+  echo "Proceeding with docker prune automatically..."
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a; then
+    echo "Error: Docker prune failed"
+    exit 1
   fi
 fi
 
-if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
+if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
   execute_ssh "mkdir -p $INPUT_DEPLOY_PATH/stacks || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 
@@ -189,11 +187,11 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
   execute_ssh "ln -nfs $INPUT_DEPLOY_PATH/stacks/$FILE_NAME $INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME"
   execute_ssh "ls -t $INPUT_DEPLOY_PATH/stacks/docker-stack-* 2>/dev/null |  tail -n +$INPUT_KEEP_FILES | xargs rm --  2>/dev/null || true"
 
-  if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ $INPUT_PULL_IMAGES_FIRST = 'true' ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    execute_ssh ${DEPLOYMENT_COMMAND} "pull"
+  if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    execute_ssh "${DEPLOYMENT_COMMAND} pull"
   fi
 
-  if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
+  if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
     execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
