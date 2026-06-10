@@ -30,3 +30,14 @@ Thumbs.db
 # temporary
 tmp/
 temp/
+
+# Never track these
+oss-builder/
+TelyX
+repos/
+mcp-audit
+oss-project-health-dashboard
+zig-out/
+node_modules/
+dist/
+*.backup
