@@ -1,6 +1,20 @@
 #!/bin/sh
 set -eu
 
+# Cleanup function to remove sensitive files and kill ssh-agent
+cleanup() {
+  echo "Cleaning up sensitive files..."
+  # Remove SSH keys
+  rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub ~/.ssh/known_hosts
+  # Kill SSH agent
+  if [ -n "$SSH_AGENT_PID" ]; then
+    kill $SSH_AGENT_PID 2>/dev/null || true
+  fi
+}
+
+# Set trap to cleanup on exit
+trap cleanup EXIT
+
 execute_ssh(){
   echo "Execute Over SSH: $@"
   if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
@@ -66,6 +80,16 @@ validate_input() {
     echo "Error: $input_name contains path traversal attempts: $input_value"
     exit 1
   fi
+  
+  # Additional security checks for specific inputs
+  if [[ "$input_name" == "pre_deployment_command_args" && -n "$input_value" ]]; then
+    # Check for potentially dangerous commands
+    if [[ "$input_value" =~ (rm\s+-rf|dd\s+if=/dev/zero|mkfs\.|fdisk|parted|format|shutdown|reboot|poweroff) ]]; then
+      echo "Error: $input_name contains potentially dangerous system commands: $input_value"
+      exit 1
+    fi
+  fi
+}
 }
 
 validate_input "args" "$INPUT_ARGS"
@@ -160,10 +184,15 @@ echo "Docker context set successfully to remote"
 
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
-  if ! echo "$INPUT_DOCKER_REGISTRY_PASSWORD" | docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-stdin "$INPUT_DOCKER_REGISTRY_URI" 2>&1; then
+  # Use temporary file to avoid password in process list
+  echo "$INPUT_DOCKER_REGISTRY_PASSWORD" > /tmp/docker_pass.txt
+  chmod 600 /tmp/docker_pass.txt
+  if ! docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-file /tmp/docker_pass.txt "$INPUT_DOCKER_REGISTRY_URI" 2>&1; then
     echo "Error: Docker login failed"
+    rm -f /tmp/docker_pass.txt
     exit 1
   fi
+  rm -f /tmp/docker_pass.txt
   echo "Docker login successful"
 fi
 
@@ -176,7 +205,6 @@ if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
     exit 1
   fi
   echo "Docker prune completed successfully."
-fi
 fi
 
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
@@ -197,7 +225,8 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
   fi
 
   if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    execute_ssh "${DEPLOYMENT_COMMAND}  $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
+    validate_input "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
+    execute_ssh "${DEPLOYMENT_COMMAND} $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
   execute_ssh "$DEPLOYMENT_COMMAND" "$INPUT_ARGS" 2>&1
