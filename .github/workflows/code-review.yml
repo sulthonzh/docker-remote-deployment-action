@@ -1,4 +1,3 @@
-# Auto-deployed by sulthonzh/code-reviewer — do not edit manually
 name: AI Code Review
 on:
   pull_request:
@@ -10,11 +9,125 @@ concurrency:
   group: review-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  review:
-    uses: sulthonzh/code-reviewer/.github/workflows/review.yml@main
-    with:
-      auto_merge: true
-      auto_release: true
-    secrets: inherit
+permissions:
+  pull-requests: write
+  contents: write
+  checks: write
+  statuses: write
 
+env:
+  ZAI_BASE_URL: "https://api.z.ai/api/coding/paas/v4/"
+
+jobs:
+  secret-scan:
+    name: "🔒 Secret Scan"
+    runs-on: ubuntu-latest
+    outputs:
+      secrets_found: ${{ steps.scan.outputs.found }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan diff for secrets
+        id: scan
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: secret-scan
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Block if secrets found
+        if: steps.scan.outputs.found == 'true'
+        run: |
+          echo "::error::Found potential secret(s) in the diff. Remove before merging."
+          exit 1
+
+  ai-review:
+    name: "🤖 AI Review"
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    outputs:
+      approved: ${{ steps.review.outputs.approved }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect project context
+        id: context
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: detect-context
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Route model
+        id: model
+        run: |
+          DIFF_LINES=$(git diff origin/main...HEAD 2>/dev/null | wc -l || echo 0)
+          if [ "$DIFF_LINES" -gt 500 ]; then
+            echo "model=glm-5.1" >> "$GITHUB_OUTPUT"
+          else
+            echo "model=glm-4.5" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run AI review
+        id: review
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: ai-review
+          model: ${{ steps.model.outputs.model }}
+          project-type: ${{ steps.context.outputs.project_type }}
+          zai-api-key: ${{ secrets.ZAI_API_KEY }}
+          zai-base-url: ${{ env.ZAI_BASE_URL }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  quality-gate:
+    name: "✅ Quality Gate"
+    runs-on: ubuntu-latest
+    needs: [secret-scan, ai-review]
+    outputs:
+      passed: ${{ steps.gate.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run quality checks
+        id: gate
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: quality-gate
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Post status
+        if: always()
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: post-status
+          passed: ${{ steps.gate.outputs.passed }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-merge:
+    name: "🔀 Auto-Merge"
+    runs-on: ubuntu-latest
+    needs: [ai-review, quality-gate]
+    if: >-
+      needs.ai-review.outputs.approved == 'true' &&
+      needs.quality-gate.outputs.passed == 'true' &&
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approve and merge
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: auto-merge
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-release:
+    name: "📦 Auto-Release"
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect and release
+        uses: sulthonzh/code-reviewer@main
+        with:
+          command: auto-release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
