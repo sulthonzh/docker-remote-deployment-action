@@ -15,14 +15,6 @@ cleanup() {
 # Set trap to cleanup on exit
 trap cleanup EXIT
 
-# Enhanced error handling function
-handle_error() {
-  local error_msg="$1"
-  local error_code="${2:-1}"
-  echo "ERROR: $error_msg" >&2
-  exit $error_code
-}
-
 execute_ssh(){
   echo "Execute Over SSH: $@"
   if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
@@ -34,106 +26,10 @@ execute_ssh(){
   fi
 }
 
-# Set default values
 if [ -z "${INPUT_REMOTE_DOCKER_PORT+x}" ]; then
   INPUT_REMOTE_DOCKER_PORT=22
 fi
 
-if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
-  INPUT_DEPLOY_PATH=~/docker-deployment
-fi
-
-if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
-  INPUT_STACK_FILE_NAME=docker-compose.yaml
-fi
-
-if [ -z "${INPUT_KEEP_FILES+x}" ]; then
-  INPUT_KEEP_FILES=4
-else
-  INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
-fi
-
-if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
-  INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
-fi
-
-if [ -z "${INPUT_COPY_STACK_FILE+x}" ]; then
-  INPUT_COPY_STACK_FILE=false
-fi
-
-# Enhanced input validation to prevent shell injection and path traversal
-validate_input() {
-  local input_name="$1"
-  local input_value="$2"
-  
-  # Check for empty input
-  if [ -z "$input_value" ]; then
-    echo "Error: $input_name cannot be empty"
-    exit 1
-  fi
-  
-  # Trim whitespace from input
-  input_value=$(echo "$input_value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-  
-  # Check for shell metacharacters that could cause command injection
-  if [[ "$input_value" =~ [;&|`$()"'] ]]; then
-    echo "Error: $input_name contains dangerous characters: $input_value"
-    exit 1
-  fi
-  
-  # Check for path traversal attempts
-  if [[ "$input_value" =~ \.\. ]]; then
-    echo "Error: $input_name contains path traversal attempts: $input_value"
-    exit 1
-  fi
-  
-  # Additional security checks for specific inputs
-  if [[ "$input_name" == "pre_deployment_command_args" && -n "$input_value" ]]; then
-      # Check for potentially dangerous commands
-    dangerous_pattern="(rm\s+-rf|dd\s+if=/dev/zero|mkfs\.|fdisk|parted|format|shutdown|reboot|poweroff|chmod\s+777|chown\s+0:0|wget\s+|curl\s+-|rm\s+-rf)"
-    if [[ "$input_value" =~ $dangerous_pattern ]]; then
-      echo "Error: $input_name contains potentially dangerous system commands: $input_value"
-      exit 1
-    fi
-  fi
-  
-  # Validate file paths are safe
-  if [[ "$input_name" =~ (deploy_path|stack_file_name) ]]; then
-    # Ensure paths don't start with / (use ~ instead for home directory)
-    if [[ "$input_value" =~ ^/ ]]; then
-      echo "Error: $input_name should not start with / for security reasons: $input_value"
-      exit 1
-    fi
-    # Ensure no leading/trailing whitespace (already handled above)
-    if [[ "$input_value" =~ ^[[:space:]]+|[[:space:]]+$ ]]; then
-      echo "Error: $input_name cannot have leading or trailing whitespace: $input_value"
-      exit 1
-    fi
-    # Validate file extension for stack file name
-    if [[ "$input_name" == "stack_file_name" && ! "$input_value" =~ \.(yaml|yml)$ ]]; then
-      echo "Error: $input_name must end with .yaml or .yml extension: $input_value"
-      exit 1
-    fi
-  fi
-  
-  # Validate deploy path format
-  if [[ "$input_name" == "deploy_path" ]]; then
-    # Ensure it doesn't contain special characters that could cause issues
-    if [[ "$input_value" =~ ["'\\s] ]]; then
-      echo "Error: $input_name contains invalid characters: $input_value"
-      exit 1
-    fi
-    # Ensure it's a reasonable path length
-    if [ ${#input_value} -gt 255 ]; then
-      echo "Error: $input_name is too long (max 255 characters): $input_value"
-      exit 1
-    fi
-  fi
-  
-  echo "Validated $input_name: $input_value"
-}
-
-# Validate required inputs
 if [ -z "${INPUT_REMOTE_DOCKER_HOST+x}" ]; then
     echo "Input remote_docker_host is required!"
     exit 1
@@ -154,7 +50,62 @@ if [ -z "${INPUT_ARGS+x}" ]; then
   exit 1
 fi
 
-# Validate all inputs
+if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
+  INPUT_DEPLOY_PATH=~/docker-deployment
+fi
+
+if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
+  INPUT_STACK_FILE_NAME=docker-compose.yaml
+fi
+
+# Input validation to prevent shell injection and path traversal
+validate_input() {
+  local input_name="$1"
+  local input_value="$2"
+  
+  # Check for empty input
+  if [ -z "$input_value" ]; then
+    echo "Error: $input_name cannot be empty"
+    exit 1
+  fi
+  
+  # Check for shell metacharacters that could cause command injection
+  if [[ "$input_value" =~ [;&|`$()"'] ]]; then
+    echo "Error: $input_name contains dangerous characters: $input_value"
+    exit 1
+  fi
+  
+  # Check for path traversal attempts
+  if [[ "$input_value" =~ \.\. ]]; then
+    echo "Error: $input_name contains path traversal attempts: $input_value"
+    exit 1
+  fi
+  
+  # Additional security checks for specific inputs
+  if [[ "$input_name" == "pre_deployment_command_args" && -n "$input_value" ]]; then
+      # Check for potentially dangerous commands
+    dangerous_pattern="(rm\s+-rf|dd\s+if=/dev/zero|mkfs\.|fdisk|parted|format|shutdown|reboot|poweroff|chmod\s+777|chown\s+0:0)"
+    if [[ "$input_value" =~ $dangerous_pattern ]]; then
+      echo "Error: $input_name contains potentially dangerous system commands: $input_value"
+      exit 1
+    fi
+  fi
+  
+  # Validate file paths are safe
+  if [[ "$input_name" =~ (deploy_path|stack_file_name) ]]; then
+    # Ensure paths don't start with / (use ~ instead for home directory)
+    if [[ "$input_value" =~ ^/ ]]; then
+      echo "Error: $input_name should not start with / for security reasons: $input_value"
+      exit 1
+    fi
+    # Ensure no leading/trailing whitespace
+    if [[ "$input_value" =~ ^[[:space:]]+|[[:space:]]+$ ]]; then
+      echo "Error: $input_name cannot have leading or trailing whitespace: $input_value"
+      exit 1
+    fi
+  fi
+}
+
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
@@ -170,9 +121,18 @@ if [[ ! "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-# Set deployment mode
-if [ -z "${INPUT_DEPLOYMENT_MODE+x}" ]; then
-  INPUT_DEPLOYMENT_MODE="docker-compose"
+if [ -z "${INPUT_KEEP_FILES+x}" ]; then
+  INPUT_KEEP_FILES=4
+else
+  INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
+fi
+
+if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
+  INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
+fi
+
+if [ -z "${INPUT_COPY_STACK_FILE+x}" ]; then
+  INPUT_COPY_STACK_FILE=false
 fi
 
 STACK_FILE=${INPUT_STACK_FILE_NAME}
@@ -228,6 +188,7 @@ echo "Add known hosts"
 ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts
 ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
 
+set context
 echo "Create docker context"
 # Retry docker context creation with backoff
 max_attempts=3
@@ -304,28 +265,20 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -P $INPUT_REMOTE_DOCKER_PORT \
-      \"$INPUT_STACK_FILE_NAME\" \"$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME\" 2>/dev/null
-
-  if [ $? -ne 0 ]; then
-    echo "Error: Failed to copy stack file to remote host"
-    exit 1
-  fi
+      \"$INPUT_STACK_FILE_NAME\" \"$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME\"
 
   execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH/stacks/$FILE_NAME\" \"$INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME\""
   execute_ssh "find \"$INPUT_DEPLOY_PATH/stacks\" -name 'docker-stack-*' -printf '%T@ %p\n' | sort -nr | tail -n +$INPUT_KEEP_FILES | cut -d' ' -f2- | xargs rm -f --  2>/dev/null || true"
 
   if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ $INPUT_PULL_IMAGES_FIRST = 'true' ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
-    echo "Pulling images before deployment..."
-    execute_ssh "$DEPLOYMENT_COMMAND pull"
+    execute_ssh "$DEPLOYMENT_COMMAND" "pull"
   fi
 
   if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ $INPUT_DEPLOYMENT_MODE = 'docker-compose' ] ; then
     validate_input "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
-    echo "Executing pre-deployment commands: $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
     execute_ssh "${DEPLOYMENT_COMMAND} $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
-  echo "Executing deployment command: $DEPLOYMENT_COMMAND $INPUT_ARGS"
   execute_ssh "$DEPLOYMENT_COMMAND" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"

@@ -1,55 +1,70 @@
 name: Docker Remote Deployment
-description: A GitHub Action that supports docker-compose and Docker Swarm deployments
+description: A GitHub Action that supports docker-compose and Docker Swarm deployments with enhanced security validation
 inputs:
   remote_docker_host:
-    description: Remote Docker host ie (user@host).
+    description: 'Remote Docker host (user@host). Cannot contain shell metacharacters or start with /.'
     required: true
   remote_docker_port:
-    description: Remote Docker ssh port ie (22).
+    description: 'Remote Docker SSH port (default: 22). Must be a valid port number.'
     required: false
     default: '22'
   ssh_public_key:
-    description: Remote Docker SSH public key eg (~/.ssh/rsa_id.pub).
+    description: 'Remote Docker SSH public key. Cannot be empty or contain shell metacharacters.'
     required: true
   ssh_private_key:
-    description: SSH private key used to connect to the docker host eg (~/.ssh/rsa_id).
+    description: 'SSH private key used to connect to the docker host. Cannot be empty.'
     required: true
   args:
-    description: Deployment command args.
+    description: 'Deployment command args. Cannot contain shell metacharacters or dangerous commands.'
     required: true
   deployment_mode:
-    description: Deployment mode either docker-swarm or docker-compose. Default is docker-compose.
+    description: 'Deployment mode: docker-swarm or docker-compose. Default is docker-compose.'
     required: false
+    default: 'docker-compose'
+    type: choice
+    options:
+    - docker-compose
+    - docker-swarm
   copy_stack_file:
-    description: Copy stack file to remote server and deploy from the server. Default is false.
+    description: 'Copy stack file to remote server and deploy from the server. Default is false.'
     required: false
+    default: 'false'
+    type: boolean
   deploy_path:
-    description: The path where the stack files will be copied to. Default ~/docker-deployment.
+    description: 'Path where stack files will be copied to. Default: ~/docker-deployment. Cannot start with / or exceed 255 chars.'
     required: false
+    default: 'docker-deployment'
   stack_file_name:
-    description: Docker stack file used. Default is docker-compose.yml.
+    description: 'Docker stack file name. Must end with .yaml or .yml. Default: docker-compose.yaml.'
     required: false
+    default: 'docker-compose.yaml'
   keep_files:
-    description: Number of the files to be kept on the server. Default is 3.
+    description: 'Number of files to keep on server (default: 3). Must be a positive number.'
     required: false
+    default: '3'
   docker_prune:
-    description: A boolean input to trigger docker prune command. Default is false.
+    description: 'Trigger docker system prune (WARNING: destructive operation). Default is false.'
     required: false
+    default: 'false'
+    type: boolean
   pre_deployment_command_args:
-    description: The args for the pre deploument command.
+    description: 'Args for pre-deployment command. Restricted to safe operations only.'
     required: false
   pull_images_first:
-    description: Pull docker images before deploying. Default is false.
+    description: 'Pull docker images before deploying. Default is false.'
     required: false
+    default: 'false'
+    type: boolean
   docker_registry_username:
-    description: The docker registry username.
+    description: 'Docker registry username (optional for private registries).'
     required: false
   docker_registry_password:
-    description: The docker registry password.
+    description: 'Docker registry password (use secrets to avoid exposure).'
     required: false
   docker_registry_uri:
-    description: The docker registry URI. Default is https://registry.hub.docker.com.
+    description: 'Docker registry URI. Default: https://registry.hub.docker.com'
     required: false
+    default: 'https://registry.hub.docker.com'
 
 runs:
   using: docker
@@ -58,4 +73,3 @@ runs:
 branding:
   icon: send
   color: green
-
