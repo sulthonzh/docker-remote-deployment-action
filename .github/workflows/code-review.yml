@@ -1,0 +1,20 @@
+# Auto-deployed by sulthonzh/code-reviewer — do not edit manually
+name: AI Code Review
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  push:
+    branches: [main]
+
+concurrency:
+  group: review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    uses: sulthonzh/code-reviewer/.github/workflows/review.yml@main
+    with:
+      auto_merge: true
+      auto_release: true
+    secrets: inherit
+
