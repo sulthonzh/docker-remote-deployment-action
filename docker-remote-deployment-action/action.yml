@@ -32,6 +32,7 @@ inputs:
   keep_files:
     description: Number of the files to be kept on the server. Default is 3.
     required: false
+    default: '3'
   docker_prune:
     description: A boolean input to trigger docker prune command. Default is false.
     required: false
@@ -58,4 +59,3 @@ runs:
 branding:
   icon: send
   color: green
-

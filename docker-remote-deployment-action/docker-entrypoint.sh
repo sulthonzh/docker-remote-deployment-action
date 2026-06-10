@@ -83,13 +83,27 @@ validate_input() {
   
   # Additional security checks for specific inputs
   if [[ "$input_name" == "pre_deployment_command_args" && -n "$input_value" ]]; then
-    # Check for potentially dangerous commands
-    if [[ "$input_value" =~ (rm\s+-rf|dd\s+if=/dev/zero|mkfs\.|fdisk|parted|format|shutdown|reboot|poweroff) ]]; then
+      # Check for potentially dangerous commands
+    dangerous_pattern="(rm\s+-rf|dd\s+if=/dev/zero|mkfs\.|fdisk|parted|format|shutdown|reboot|poweroff|chmod\s+777|chown\s+0:0)"
+    if [[ "$input_value" =~ $dangerous_pattern ]]; then
       echo "Error: $input_name contains potentially dangerous system commands: $input_value"
       exit 1
     fi
   fi
-}
+  
+  # Validate file paths are safe
+  if [[ "$input_name" =~ (deploy_path|stack_file_name) ]]; then
+    # Ensure paths don't start with / (use ~ instead for home directory)
+    if [[ "$input_value" =~ ^/ ]]; then
+      echo "Error: $input_name should not start with / for security reasons: $input_value"
+      exit 1
+    fi
+    # Ensure no leading/trailing whitespace
+    if [[ "$input_value" =~ ^[[:space:]]+|[[:space:]]+$ ]]; then
+      echo "Error: $input_name cannot have leading or trailing whitespace: $input_value"
+      exit 1
+    fi
+  fi
 }
 
 validate_input "args" "$INPUT_ARGS"
@@ -150,14 +164,25 @@ echo "Registering SSH keys..."
 
 # register the private key with the agent.
 mkdir -p ~/.ssh
-ls ~/.ssh
-printf '%s\n' "$INPUT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-chmod 600 ~/.ssh/id_rsa
-printf '%s\n' "$INPUT_SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
-chmod 600 ~/.ssh/id_rsa.pub
-#chmod 600 "~/.ssh"
+# Use secure temporary directory for SSH operations
+tmp_dir=$(mktemp -d)
+chmod 700 "$tmp_dir"
+
+# Write SSH keys to temporary files with proper permissions
+printf '%s\n' "$INPUT_SSH_PRIVATE_KEY" > "$tmp_dir/id_rsa"
+printf '%s\n' "$INPUT_SSH_PUBLIC_KEY" > "$tmp_dir/id_rsa.pub"
+chmod 600 "$tmp_dir/id_rsa" "$tmp_dir/id_rsa.pub"
+
 eval $(ssh-agent)
-ssh-add ~/.ssh/id_rsa
+ssh-add "$tmp_dir/id_rsa"
+
+# Copy keys to standard location for compatibility
+cp "$tmp_dir/id_rsa" ~/.ssh/
+cp "$tmp_dir/id_rsa.pub" ~/.ssh/
+chmod 600 ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
+
+# Clean up temporary directory
+rm -rf "$tmp_dir"
 
 echo "Add known hosts"
 ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts
@@ -165,14 +190,28 @@ ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts
 
 set context
 echo "Create docker context"
-if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>&1; then
-  echo "Error: Failed to create docker context"
-  # Try removing existing context first and recreate
-  docker context rm remote --force 2>/dev/null || true
-  if ! docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>&1; then
-    echo "Error: Failed to create docker context after cleanup"
-    exit 1
+# Retry docker context creation with backoff
+max_attempts=3
+attempt=1
+while [ $attempt -le $max_attempts ]; do
+  if docker context create remote --docker "host=ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" 2>&1; then
+    echo "Docker context created successfully"
+    break
+  else
+    echo "Attempt $attempt/$max_attempts: Failed to create docker context"
+    if [ $attempt -lt $max_attempts ]; then
+      echo "Retrying in 2 seconds..."
+      sleep 2
+      # Try removing existing context first
+      docker context rm remote --force 2>/dev/null || true
+    fi
   fi
+  attempt=$((attempt + 1))
+done
+
+if [ $attempt -gt $max_attempts ]; then
+  echo "Error: Failed to create docker context after $max_attempts attempts"
+  exit 1
 fi
 
 if ! docker context use remote 2>&1; then
@@ -199,8 +238,19 @@ fi
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ $INPUT_DOCKER_PRUNE = 'true' ] ; then
   echo "WARNING: This will remove unused images, containers, networks, and volumes."
   echo "This is a destructive operation that cannot be undone."
+  echo "You have 10 seconds to cancel this operation..."
+  sleep 10
+  
   echo "Proceeding with automated docker system prune..."
-  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a; then
+  
+  # Additional safety checks
+  if [ "$INPUT_DOCKER_PRUNE" != 'true' ]; then
+    echo "Error: Invalid docker_prune value: $INPUT_DOCKER_PRUNE"
+    exit 1
+  fi
+  
+  # Use time filter to only prune old data (last 7 days)
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a --filter "until=168h"; then
     echo "Error: Docker prune failed"
     exit 1
   fi
