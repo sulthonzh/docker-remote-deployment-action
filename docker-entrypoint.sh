@@ -50,13 +50,13 @@ validate_input() {
   local input_value="$2"
   
   # Check for shell metacharacters that could cause command injection
-  if [[ "$input_value" =~ [;&|`$()"'] ]]; then
+  if echo "$input_value" | grep -qE '[;&|`$()\\'"'"'']; then
     echo "Error: $input_name contains dangerous characters: $input_value"
     exit 1
   fi
   
   # Check for path traversal attempts
-  if [[ "$input_value" =~ \.\. ]]; then
+  if echo "$input_value" | grep -qE '\.\.'; then
     echo "Error: $input_name contains path traversal attempts: $input_value"
     exit 1
   fi
