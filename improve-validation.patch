@@ -1,0 +1,79 @@
+*** Begin Patch
+*** Update File: docker-entrypoint.sh
+***************
+*** 56,66 ****
+  # Input validation to prevent shell injection and path traversal
+  validate_input() {
+    local input_name="$1"
+    local input_value="$2"
+    
+    # Check for shell metacharacters that could cause command injection
+    if echo "$input_value" | grep -qE '[;&|`\$()\"\'\'']; then
+      echo "Error: $input_name contains dangerous characters: $input_value"
+      exit 1
+    fi
+    
+    # Check for path traversal attempts
+    if echo "$input_value" | grep -qE '\\.\.'; then
+      echo "Error: $input_name contains path traversal attempts: $input_value"
+      exit 1
+    fi
+  }
+--- 56,69 ----
+  # Input validation to prevent shell injection and path traversal
+  validate_input() {
+    local input_name="$1"
+    local input_value="$2"
+    
+    # Check for empty inputs
+    if [ -z "$input_value" ]; then
+      echo "Error: $input_name cannot be empty"
+      exit 1
+    fi
+    
+    # Check for shell metacharacters that could cause command injection
+    if echo "$input_value" | grep -qE '[;&|`\$()\"\'\'']; then
+      echo "Error: $input_name contains dangerous characters that could cause command injection: $input_value"
+      exit 1
+    fi
+    
+    # Check for path traversal attempts
+    if echo "$input_value" | grep -qE '\\.\.'; then
+      echo "Error: $input_name contains path traversal attempts: $input_value"
+      exit 1
+    fi
+    
+    # Check for absolute paths that might be security risks
+    if echo "$input_value" | grep -qE '^/'; then
+      echo "Warning: $input_name uses an absolute path: $input_value"
+    fi
+  }
+***************
+*** 72,78 ****
+  # Ensure numeric inputs are valid numbers
+  if [[ ! "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
+    echo "Error: remote_docker_port must be a number: $INPUT_REMOTE_DOCKER_PORT"
+    exit 1
+  fi
+  
+  if [[ ! "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
+    echo "Error: keep_files must be a number: $INPUT_KEEP_FILES"
+    exit 1
+  fi
+--- 72,80 ----
+  # Ensure numeric inputs are valid numbers
+  if [[ ! "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
+    echo "Error: remote_docker_port must be a number: $INPUT_REMOTE_DOCKER_PORT"
+    exit 1
+  fi
+  
+  if [[ ! "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
+    echo "Error: keep_files must be a number: $INPUT_KEEP_FILES"
+    exit 1
+  fi
+  
+  # Validate that keep_files is a reasonable number
+  if [ "$INPUT_KEEP_FILES" -gt 50 ]; then
+    echo "Warning: keep_files value is very large: $INPUT_KEEP_FILES"
+  fi
+*** End Patch

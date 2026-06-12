@@ -1,8 +1,74 @@
-version: "3.3"
+version: '3.8'
 
 services:
+  # Example web application service
   webapp:
-    image: nginx
+    image: nginx:alpine
+    container_name: docker-deployment-demo
     ports:
-      - 8080:8080
-    network_mode: bridge
+      - "8080:80"
+    networks:
+      - app-network
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Example database service
+  db:
+    image: postgres:15-alpine
+    container_name: docker-deployment-db
+    environment:
+      POSTGRES_DB: myapp
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d myapp"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Example application service
+  app:
+    image: node:18-alpine
+    container_name: docker-deployment-app
+    working_dir: /app
+    command: node server.js
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: db
+      DB_NAME: myapp
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+    volumes:
+      - ./src:/app/src:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

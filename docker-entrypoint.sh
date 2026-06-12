@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -euo pipefail
 
 # Cleanup function to remove SSH keys and agent
 cleanup() {

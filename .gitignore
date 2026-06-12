@@ -41,3 +41,28 @@ zig-out/
 node_modules/
 dist/
 *.backup
+
+# Local development files
+*.local
+.DS_Store
+Thumbs.db
+
+# IDE files (but allow .vscode if it contains GitHub Actions configs)
+.idea/
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+
+# Temporary files
+*.tmp
+*.temp
+
+# Log files
+*.log
+logs/
+
+# Build artifacts
+build/
+target/
+out/
+
