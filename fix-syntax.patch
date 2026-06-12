@@ -1,0 +1,11 @@
+*** a/docker-entrypoint.sh
+--- b/docker-entrypoint.sh
+@@ -50,7 +50,7 @@
+   local input_value="$2"
+   
+   # Check for shell metacharacters that could cause command injection
+-  if [[ "$input_value" =~ [;&|`$()"'] ]]; then
++  if echo "$input_value" | grep -qE '[;&|`$\()\"'"'"'']; then
+     echo "Error: $input_name contains dangerous characters: $input_value"
+     exit 1
+   fi
