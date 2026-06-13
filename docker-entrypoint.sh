@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -euo pipefail
 
 # Cleanup function to remove SSH keys and agent
@@ -7,7 +7,7 @@ cleanup() {
   # Remove SSH keys
   rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub 2>/dev/null || true
   # Kill SSH agent if running
-  if [ -n "$SSH_AGENT_PID" ]; then
+  if [ -n "${SSH_AGENT_PID:-}" ]; then
     kill $SSH_AGENT_PID 2>/dev/null || true
   fi
   # Remove docker context
@@ -64,40 +64,40 @@ fi
 validate_input() {
   local input_name="$1"
   local input_value="$2"
-  
+
   # Check for shell metacharacters that could cause command injection
-  if echo "$input_value" | grep -qE '[;&|`\$()\"\'\'']; then
-    echo "Error: $input_name contains dangerous characters: $input_value"
+  if printf '%s' "$input_value" | grep -qE '[;&|`$()"'"'"']'; then
+    echo "Error: $input_name contains dangerous characters"
     exit 1
   fi
-  
-  # Check for path traversal attempts
-  if echo "$input_value" | grep -qE '\\.\.'; then
-    echo "Error: $input_name contains path traversal attempts: $input_value"
-    exit 1
-  fi
+
+  # Check for path traversal attempts (..)
+  case "$input_value" in
+    *..*) echo "Error: $input_name contains path traversal attempts"; exit 1 ;;
+  esac
 }
 
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
 
+# Set default for KEEP_FILES before validating
+if [ -z "${INPUT_KEEP_FILES+x}" ]; then
+  INPUT_KEEP_FILES=4
+fi
+
 # Ensure numeric inputs are valid numbers
-if [[ ! "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
+if ! [[ "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
   echo "Error: remote_docker_port must be a number: $INPUT_REMOTE_DOCKER_PORT"
   exit 1
 fi
 
-if [[ ! "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
+if ! [[ "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
   echo "Error: keep_files must be a number: $INPUT_KEEP_FILES"
   exit 1
 fi
 
-if [ -z "${INPUT_KEEP_FILES+x}" ]; then
-  INPUT_KEEP_FILES=4
-else
-  INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
-fi
+INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
 
 if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
   INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
@@ -184,7 +184,7 @@ if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; th
   echo "WARNING: This will remove unused images, containers, networks, and volumes."
   echo "This is a destructive operation that cannot be undone."
   echo "Proceeding with docker prune automatically..."
-  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a; then
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f; then
     echo "Error: Docker prune failed"
     exit 1
   fi
