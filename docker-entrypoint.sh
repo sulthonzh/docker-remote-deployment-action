@@ -80,6 +80,8 @@ validate_input() {
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
+validate_input "pre_deployment_command_args" "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS:-}"
+validate_input "docker_registry_uri" "${INPUT_DOCKER_REGISTRY_URI:-}"
 
 # Set default for KEEP_FILES before validating
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
@@ -89,6 +91,10 @@ fi
 # Ensure numeric inputs are valid numbers
 if ! [[ "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
   echo "Error: remote_docker_port must be a number: $INPUT_REMOTE_DOCKER_PORT"
+  exit 1
+fi
+if [ "$INPUT_REMOTE_DOCKER_PORT" -lt 1 ] || [ "$INPUT_REMOTE_DOCKER_PORT" -gt 65535 ]; then
+  echo "Error: remote_docker_port must be between 1 and 65535: $INPUT_REMOTE_DOCKER_PORT"
   exit 1
 fi
 
@@ -117,15 +123,19 @@ else
   DEPLOYMENT_COMMAND_OPTIONS=" --log-level debug --host ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT"
 fi
 
-case $INPUT_DEPLOYMENT_MODE in
+case "$INPUT_DEPLOYMENT_MODE" in
 
   docker-swarm)
     DEPLOYMENT_COMMAND="docker $DEPLOYMENT_COMMAND_OPTIONS stack deploy --compose-file $STACK_FILE"
   ;;
 
-  *)
-    INPUT_DEPLOYMENT_MODE="docker-compose"
+  docker-compose)
     DEPLOYMENT_COMMAND="docker-compose -f $STACK_FILE $DEPLOYMENT_COMMAND_OPTIONS"
+  ;;
+
+  *)
+    echo "Error: deployment_mode must be 'docker-compose' or 'docker-swarm', got: $INPUT_DEPLOYMENT_MODE"
+    exit 1
   ;;
 esac
 
