@@ -17,5 +17,8 @@
   "packageRules": {
     "matchDepTypes": ["dependencies"],
     "automerge": true
-  }
+  },
+  "dependencyDashboard": true,
+  "suppressNotifications": ["prIgnoreNotification"],
+  "ignorePaths": ["**/docker-compose.yml"]
 }
