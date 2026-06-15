@@ -26,7 +26,17 @@ services:
     environment:
       POSTGRES_DB: myapp
       POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
+      # POSTGRES_PASSWORD: # Set this as an environment variable in production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d myapp"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

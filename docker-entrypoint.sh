@@ -17,6 +17,9 @@ cleanup() {
 # Set trap for cleanup
 trap cleanup EXIT
 
+# Trap signals for better cleanup
+trap cleanup SIGINT SIGTERM ERR
+
 execute_ssh(){
   echo "Execute Over SSH: $@"
   if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
@@ -65,15 +68,36 @@ validate_input() {
   local input_name="$1"
   local input_value="$2"
 
-  # Check for shell metacharacters that could cause command injection
-  if printf '%s' "$input_value" | grep -qE '[;&|`$()"'"'"']'; then
-    echo "Error: $input_name contains dangerous characters"
+  # Check for empty input
+  if [ -z "$input_value" ]; then
+    echo "Error: $input_name cannot be empty"
     exit 1
   fi
 
-  # Check for path traversal attempts (..)
+  # Check for shell metacharacters that could cause command injection
+  # More comprehensive regex pattern that covers various shell injection vectors
+  if printf '%s' "$input_value" | grep -qE '[;&|`$()\"'"'"']|[\\]'?'*|=|<|>|&|\||^'; then
+    echo "Error: $input_name contains dangerous characters that could cause command injection"
+    exit 1
+  fi
+
+  # Check for path traversal attempts (..), absolute paths, and suspicious patterns
   case "$input_value" in
-    *..*) echo "Error: $input_name contains path traversal attempts"; exit 1 ;;
+    *..*|/*|~*|\$*|\\${*}) 
+      echo "Error: $input_name contains potentially dangerous path patterns" 
+      exit 1 
+      ;;
+  esac
+
+  # Additional validation for specific inputs
+  case "$input_name" in
+    "remote_docker_port"|"keep_files")
+      # These should be validated as numbers elsewhere, but extra safety check
+      if ! echo "$input_value" | grep -q '^[0-9]+$'; then
+        echo "Error: $input_name must be a positive integer"
+        exit 1
+      fi
+      ;;
   esac
 }
 
@@ -90,16 +114,15 @@ fi
 
 # Ensure numeric inputs are valid numbers
 if ! [[ "$INPUT_REMOTE_DOCKER_PORT" =~ ^[0-9]+$ ]]; then
-  echo "Error: remote_docker_port must be a number: $INPUT_REMOTE_DOCKER_PORT"
+  echo "Error: remote_docker_port must be a number between 1 and 65535: $INPUT_REMOTE_DOCKER_PORT"
   exit 1
 fi
 if [ "$INPUT_REMOTE_DOCKER_PORT" -lt 1 ] || [ "$INPUT_REMOTE_DOCKER_PORT" -gt 65535 ]; then
   echo "Error: remote_docker_port must be between 1 and 65535: $INPUT_REMOTE_DOCKER_PORT"
   exit 1
 fi
-
 if ! [[ "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
-  echo "Error: keep_files must be a number: $INPUT_KEEP_FILES"
+  echo "Error: keep_files must be a positive integer: $INPUT_KEEP_FILES"
   exit 1
 fi
 
@@ -193,6 +216,8 @@ fi
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
   echo "WARNING: This will remove unused images, containers, networks, and volumes."
   echo "This is a destructive operation that cannot be undone."
+  echo "WARNING: docker system prune -a does NOT remove volumes by default."
+  echo "To remove volumes, add --volumes flag. This is a destructive operation."
   echo "Proceeding with docker prune automatically..."
   if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f; then
     echo "Error: Docker prune failed"
