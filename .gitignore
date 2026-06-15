@@ -1,8 +1,8 @@
 # dependencies
 node_modules/
 
-# build
-dist/
+# build (action repos keep dist/ but build/ should be ignored)
+build/
 compiled/
 
 # env
@@ -66,3 +66,14 @@ build/
 target/
 out/
 
+# JS patterns (action repos exempt from dist/ removal)
+node_modules/
+build/
+.env
+.env.*
+
+# Python patterns
+__pycache__/
+.venv/
+*.egg-info/
+.mypy_cache/
