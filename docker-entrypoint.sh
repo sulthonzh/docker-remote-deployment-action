@@ -12,6 +12,8 @@ cleanup() {
   fi
   # Remove docker context
   docker context rm remote -f 2>/dev/null || true
+  # Remove temporary files
+  rm -f "$temp_passwd_file" 2>/dev/null || true
 }
 
 # Set trap for cleanup
@@ -24,46 +26,15 @@ execute_ssh(){
   echo "Execute Over SSH: $@"
   if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
-      -p $INPUT_REMOTE_DOCKER_PORT \
-      -o StrictHostKeyChecking=no "$INPUT_REMOTE_DOCKER_HOST" "$@"; then
+      -o StrictHostKeyChecking=no \
+      -p "$INPUT_REMOTE_DOCKER_PORT" \
+      "$INPUT_REMOTE_DOCKER_HOST" "$@"; then
     echo "Error: SSH command failed: $@"
     exit 1
   fi
 }
 
-if [ -z "${INPUT_REMOTE_DOCKER_PORT+x}" ]; then
-  INPUT_REMOTE_DOCKER_PORT=22
-fi
-
-if [ -z "${INPUT_REMOTE_DOCKER_HOST+x}" ]; then
-    echo "Input remote_docker_host is required!"
-    exit 1
-fi
-
-if [ -z "${INPUT_SSH_PUBLIC_KEY+x}" ]; then
-    echo "Input ssh_public_key is required!"
-    exit 1
-fi
-
-if [ -z "${INPUT_SSH_PRIVATE_KEY+x}" ]; then
-    echo "Input ssh_private_key is required!"
-    exit 1
-fi
-
-if [ -z "${INPUT_ARGS+x}" ]; then
-  echo "Input input_args is required!"
-  exit 1
-fi
-
-if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
-  INPUT_DEPLOY_PATH=~/docker-deployment
-fi
-
-if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
-  INPUT_STACK_FILE_NAME=docker-compose.yaml
-fi
-
-# Input validation to prevent shell injection and path traversal
+# Enhanced input validation to prevent shell injection and path traversal
 validate_input() {
   local input_name="$1"
   local input_value="$2"
@@ -75,8 +46,8 @@ validate_input() {
   fi
 
   # Check for shell metacharacters that could cause command injection
-  # More comprehensive regex pattern that covers various shell injection vectors
-  if printf '%s' "$input_value" | grep -qE '[;&|`$()\"'"'"']|[\\]'?'*|=|<|>|&|\||^'; then
+  # Enhanced regex pattern that covers various shell injection vectors
+  if printf '%s' "$input_value" | grep -qE '[;&|`$()\"'"'"']|[\\]'?'*|=|<|>|&|\||^'"'"'${}\n\r\t']; then
     echo "Error: $input_name contains dangerous characters that could cause command injection"
     exit 1
   fi
@@ -101,6 +72,42 @@ validate_input() {
   esac
 }
 
+# Set defaults early
+if [ -z "${INPUT_REMOTE_DOCKER_PORT+x}" ]; then
+  INPUT_REMOTE_DOCKER_PORT=22
+fi
+
+# Validate required inputs
+if [ -z "${INPUT_REMOTE_DOCKER_HOST+x}" ]; then
+    echo "Input remote_docker_host is required!"
+    exit 1
+fi
+
+if [ -z "${INPUT_SSH_PUBLIC_KEY+x}" ]; then
+    echo "Input ssh_public_key is required!"
+    exit 1
+fi
+
+if [ -z "${INPUT_SSH_PRIVATE_KEY+x}" ]; then
+    echo "Input ssh_private_key is required!"
+    exit 1
+fi
+
+if [ -z "${INPUT_ARGS+x}" ]; then
+  echo "Input input_args is required!"
+  exit 1
+fi
+
+# Set defaults after validation
+if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
+  INPUT_DEPLOY_PATH=~/docker-deployment
+fi
+
+if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
+  INPUT_STACK_FILE_NAME=docker-compose.yaml
+fi
+
+# Enhanced input validation
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
@@ -126,6 +133,7 @@ if ! [[ "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
+# Handle keep_files - add 1 to include the current file
 INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
 
 if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
@@ -169,20 +177,19 @@ echo "Registering SSH keys..."
 
 # register the private key with the agent.
 mkdir -p ~/.ssh
-ls ~/.ssh
+chmod 700 ~/.ssh
 printf '%s\n' "$INPUT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
 chmod 600 ~/.ssh/id_rsa
 printf '%s\n' "$INPUT_SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
 chmod 600 ~/.ssh/id_rsa.pub
-#chmod 600 "~/.ssh"
 eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
 
 echo "Add known hosts"
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: Could not scan SSH host key"
-ssh-keyscan -p $INPUT_REMOTE_DOCKER_PORT "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || echo "Warning: Could not update system known_hosts"
+ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: Could not scan SSH host key"
+ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || echo "Warning: Could not update system known_hosts"
 
-set context
+# Set context
 echo "Create docker context"
 # Remove existing context if it exists to avoid conflicts
 if docker context ls 2>/dev/null | grep -q "remote"; then
@@ -199,6 +206,7 @@ if ! docker context use remote; then
   exit 1
 fi
 
+# Handle Docker registry authentication
 if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
   # Use a temporary file for the password to avoid leaving it in process lists
@@ -207,12 +215,13 @@ if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGI
   chmod 600 "$temp_passwd_file"
   if ! docker login -u "$INPUT_DOCKER_REGISTRY_USERNAME" --password-file "$temp_passwd_file" "$INPUT_DOCKER_REGISTRY_URI"; then
     echo "Error: Docker login failed"
-    rm -f "$temp_passwd_file"
+    cleanup
     exit 1
   fi
-  rm -f "$temp_passwd_file"
+  # temp_passwd_file will be cleaned up by the cleanup function
 fi
 
+# Handle Docker system prune with warning
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
   echo "WARNING: This will remove unused images, containers, networks, and volumes."
   echo "This is a destructive operation that cannot be undone."
@@ -225,6 +234,7 @@ if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; th
   fi
 fi
 
+# Handle stack file copying and deployment
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
   execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH\"/stacks || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
@@ -232,20 +242,24 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
   scp -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
-      -P $INPUT_REMOTE_DOCKER_PORT \
-      $INPUT_STACK_FILE_NAME "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
+      -P "$INPUT_REMOTE_DOCKER_PORT" \
+      "$INPUT_STACK_FILE_NAME" "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
 
   execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH\"/stacks/$FILE_NAME \"$INPUT_DEPLOY_PATH\"/$INPUT_STACK_FILE_NAME"
   execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +\"$INPUT_KEEP_FILES\" | xargs rm --  2>/dev/null || true"
 
+  # Handle pre-deployment commands
   if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    echo "Pulling images first..."
     execute_ssh "${DEPLOYMENT_COMMAND} pull"
   fi
 
   if ! [ -z "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+    echo "Running pre-deployment command: $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
     execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
+  echo "Running deployment command: $INPUT_ARGS"
   execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"

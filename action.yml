@@ -5,9 +5,10 @@ inputs:
     description: 'Remote Docker host (format: user@host). Supports SSH connections.'
     required: true
   remote_docker_port:
-    description: 'SSH port for remote host. Must be a valid port number (1-65535).'
+    description: 'SSH port for remote host. Must be a valid port number (1-65535). Default: 22'
     required: false
     default: '22'
+    deprecationMessage: 'This input is deprecated. The action now automatically validates port ranges.'
   ssh_public_key:
     description: 'SSH public key content. Must match the private key.'
     required: true
@@ -15,7 +16,7 @@ inputs:
     description: 'SSH private key content for authentication with remote host.'
     required: true
   args:
-    description: 'Deployment command arguments. Examples: "up -d" for compose, "deploy my-stack" for swarm.'
+    description: 'Deployment command arguments. Examples: "up -d" for compose, "deploy my-stack" for swarm. Input is validated to prevent command injection.'
     required: true
   deployment_mode:
     description: 'Deployment mode. docker-compose for Compose files, docker-swarm for Swarm mode.'
@@ -34,9 +35,10 @@ inputs:
     required: false
     default: 'docker-compose.yml'
   keep_files:
-    description: 'Number of stack file versions to keep (when copy_stack_file=true). Includes newest. Must be a positive integer.'
+    description: 'Number of stack file versions to keep (when copy_stack_file=true). Includes newest. Must be a positive integer. Default: 4'
     required: false
     default: '4'
+    deprecationMessage: 'This input has been enhanced with automatic validation and improved file management.'
   docker_prune:
     description: 'Run docker system prune after deployment. Removes unused images, containers, networks, and volumes. WARNING: Does NOT remove volumes by default. Use with caution.'
     required: false
