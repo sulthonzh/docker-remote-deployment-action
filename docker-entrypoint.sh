@@ -13,7 +13,7 @@ cleanup() {
   # Remove docker context
   docker context rm remote -f 2>/dev/null || true
   # Remove temporary files
-  rm -f "$temp_passwd_file" 2>/dev/null || true
+  rm -f "${temp_passwd_file:-}" 2>/dev/null || true
 }
 
 # Set trap for cleanup
@@ -104,7 +104,7 @@ if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
 fi
 
 if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
-  INPUT_STACK_FILE_NAME=docker-compose.yaml
+  INPUT_STACK_FILE_NAME=docker-compose.yml
 fi
 
 # Enhanced input validation
