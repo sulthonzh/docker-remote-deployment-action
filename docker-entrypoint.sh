@@ -47,18 +47,21 @@ validate_input() {
 
   # Check for shell metacharacters that could cause command injection
   # Enhanced regex pattern that covers various shell injection vectors
-  if printf '%s' "$input_value" | grep -qE '[;&|`$()\"'"'"']|[\\]'?'*|=|<|>|&|\||^'"'"'${}\n\r\t']; then
+  if printf '%s' "$input_value" | grep -qE '[;&|`$()\"'"'"']'; then
     echo "Error: $input_name contains dangerous characters that could cause command injection"
     exit 1
   fi
 
   # Check for path traversal attempts (..), absolute paths, and suspicious patterns
-  case "$input_value" in
-    *..*|/*|~*|\$*|\\${*}) 
-      echo "Error: $input_name contains potentially dangerous path patterns" 
-      exit 1 
-      ;;
-  esac
+  # Skip validation for args, deploy_path, and stack_file_name as they may need special characters
+  if [[ "$input_name" != "args" && "$input_name" != "deploy_path" && "$input_name" != "stack_file_name" ]]; then
+    case "$input_value" in
+      *..*|/*|~*|\$*|\\${*}) 
+        echo "Error: $input_name contains potentially dangerous path patterns" 
+        exit 1 
+        ;;
+    esac
+  fi
 
   # Additional validation for specific inputs
   case "$input_name" in
@@ -83,6 +86,12 @@ if [ -z "${INPUT_REMOTE_DOCKER_HOST+x}" ]; then
     exit 1
 fi
 
+# Validate remote_docker_host format (should be user@host)
+if ! echo "$INPUT_REMOTE_DOCKER_HOST" | grep -qE '^[^@]+@[^@]+$'; then
+  echo "Error: remote_docker_host must be in format 'user@host': $INPUT_REMOTE_DOCKER_HOST"
+  exit 1
+fi
+
 if [ -z "${INPUT_SSH_PUBLIC_KEY+x}" ]; then
     echo "Input ssh_public_key is required!"
     exit 1
@@ -104,7 +113,7 @@ if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
 fi
 
 if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
-  INPUT_STACK_FILE_NAME=docker-compose.yaml
+  INPUT_STACK_FILE_NAME=docker-compose.yml
 fi
 
 # Enhanced input validation

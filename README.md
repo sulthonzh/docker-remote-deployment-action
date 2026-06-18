@@ -180,9 +180,9 @@ The action includes comprehensive input validation to prevent:
 - **Example**: `production.yml`
 
 #### `keep_files`
-- **Description**: Number of stack file versions to keep (when copy_stack_file=true)
+- **Description**: Number of stack file versions to keep (when copy_stack_file=true). Includes the current deployed file.
 - **Required**: false
-- **Default**: `3`
+- **Default**: `4`
 - **Example**: `5`
 
 #### `docker_prune`
