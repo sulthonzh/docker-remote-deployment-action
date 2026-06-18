@@ -190,7 +190,7 @@ The action includes comprehensive input validation to prevent:
 - **Required**: false
 - **Default**: `false`
 - **Example**: `true`
-- **⚠️ Warning**: This is destructive and removes unused images, containers, networks, and volumes
+- **⚠️ Warning**: This is destructive and removes unused images, containers, and networks. By default it does NOT remove volumes.
 
 #### `pre_deployment_command_args`
 - **Description**: Arguments for pre-deployment command (docker-compose mode only)
