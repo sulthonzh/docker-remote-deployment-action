@@ -76,4 +76,4 @@ build/
 __pycache__/
 .venv/
 *.egg-info/
-.mypy_cache/
+.mypy_cache/*.patch
