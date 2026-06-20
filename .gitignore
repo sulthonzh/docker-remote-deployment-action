@@ -1,35 +1,52 @@
-# dependencies
+# Dependencies
 node_modules/
 
-# build (action repos keep dist/ but build/ should be ignored)
+# Build artifacts
 build/
 compiled/
+dist/
+target/
+out/
 
-# env
+# Environment files
 .env
 .env.local
+.env.*
 !.env.example
 
-# cache
+# Cache
 .zig-cache/
 .openclaw/
 .omo/
 .playwright-mcp/
 
-# os
+# OS files
 .DS_Store
 Thumbs.db
 
-# ide
+# IDE files
 .vscode/
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
 .idea/
 
-# logs
+# Logs
 *.log
+logs/
 
-# temporary
+# Temporary files
 tmp/
 temp/
+*.tmp
+*.temp
+*.backup
+
+# Python patterns
+__pycache__/
+.venv/
+*.egg-info/
+.mypy_cache/
 
 # Never track these
 oss-builder/
@@ -38,42 +55,3 @@ repos/
 mcp-audit
 oss-project-health-dashboard
 zig-out/
-node_modules/
-dist/
-*.backup
-
-# Local development files
-*.local
-.DS_Store
-Thumbs.db
-
-# IDE files (but allow .vscode if it contains GitHub Actions configs)
-.idea/
-.vscode/settings.json
-.vscode/tasks.json
-.vscode/launch.json
-
-# Temporary files
-*.tmp
-*.temp
-
-# Log files
-*.log
-logs/
-
-# Build artifacts
-build/
-target/
-out/
-
-# JS patterns (action repos exempt from dist/ removal)
-node_modules/
-build/
-.env
-.env.*
-
-# Python patterns
-__pycache__/
-.venv/
-*.egg-info/
-.mypy_cache/*.patch
