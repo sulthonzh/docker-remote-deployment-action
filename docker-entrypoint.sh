@@ -16,11 +16,8 @@ cleanup() {
   rm -f "$temp_passwd_file" 2>/dev/null || true
 }
 
-# Set trap for cleanup
-trap cleanup EXIT
-
-# Trap signals for better cleanup
-trap cleanup SIGINT SIGTERM ERR
+# Set trap for cleanup on exit and signals
+trap cleanup EXIT SIGINT SIGTERM ERR
 
 execute_ssh(){
   echo "Execute Over SSH: $@"
@@ -120,8 +117,11 @@ fi
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
-validate_input "pre_deployment_command_args" "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS:-}"
 validate_input "docker_registry_uri" "${INPUT_DOCKER_REGISTRY_URI:-}"
+# pre_deployment_command_args is optional, skip validation if empty
+if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ]; then
+  validate_input "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
+fi
 
 # Set default for KEEP_FILES before validating
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
@@ -213,6 +213,11 @@ fi
 if ! docker context use remote; then
   echo "Error: Failed to switch to docker context"
   exit 1
+fi
+
+# Initialize temp_passwd_file variable to avoid unbound variable error
+if [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] || [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
+  temp_passwd_file=""
 fi
 
 # Handle Docker registry authentication
