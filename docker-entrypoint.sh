@@ -142,8 +142,8 @@ if ! [[ "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-# Handle keep_files - add 1 to include the current file
-INPUT_KEEP_FILES=$((INPUT_KEEP_FILES+1))
+# Note: keep_files represents total versions to keep INCLUDING the currently deployed one.
+# Example: keep_files=4 means current version + up to 3 previous versions (total 4).
 
 if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
   INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
@@ -255,7 +255,7 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
       "$INPUT_STACK_FILE_NAME" "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
 
   execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH\"/stacks/$FILE_NAME \"$INPUT_DEPLOY_PATH\"/$INPUT_STACK_FILE_NAME"
-  execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +\"$INPUT_KEEP_FILES\" | xargs rm --  2>/dev/null || true"
+  execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((INPUT_KEEP_FILES+1)) | xargs rm -- 2>/dev/null || true"
 
   # Handle pre-deployment commands
   if ! [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then

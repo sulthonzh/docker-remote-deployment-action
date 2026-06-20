@@ -35,10 +35,9 @@ inputs:
     required: false
     default: 'docker-compose.yml'
   keep_files:
-    description: 'Number of stack file versions to keep (when copy_stack_file=true). Includes newest. Must be a positive integer. Default: 4'
+    description: 'Total number of stack file versions to keep, including the currently deployed file (when copy_stack_file=true). Example: keep_files=4 retains the current version plus up to 3 previous versions. Must be a positive integer. Default: 4'
     required: false
     default: '4'
-    deprecationMessage: 'This input has been enhanced with automatic validation and improved file management.'
   docker_prune:
     description: 'Run docker system prune after deployment. Removes unused images, containers, networks, and volumes. WARNING: Does NOT remove volumes by default. Use with caution.'
     required: false
