@@ -55,3 +55,7 @@ repos/
 mcp-audit
 oss-project-health-dashboard
 zig-out/
+
+# Dev patch files
+*.patch
+fix_script.py
