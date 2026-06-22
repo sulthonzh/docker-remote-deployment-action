@@ -8,7 +8,6 @@ inputs:
     description: 'SSH port for remote host. Must be a valid port number (1-65535). Default: 22'
     required: false
     default: '22'
-    deprecationMessage: 'This input is deprecated. The action now automatically validates port ranges.'
   ssh_public_key:
     description: 'SSH public key content. Must match the private key.'
     required: true
