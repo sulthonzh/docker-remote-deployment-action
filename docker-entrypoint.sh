@@ -1,19 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
+# Initialize temp_passwd_file early (before trap) to prevent unbound variable errors in cleanup
+temp_passwd_file=""
+
 # Cleanup function to remove SSH keys and agent
 cleanup() {
   echo "Cleaning up..."
   # Remove SSH keys
   rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub 2>/dev/null || true
   # Kill SSH agent if running
-  if [ -n "${SSH_AGENT_PID:-}" ]; then
-    kill $SSH_AGENT_PID 2>/dev/null || true
+  if [ -n "${SSH_AGENT_PID+x}" ] && [ -n "$SSH_AGENT_PID" ]; then
+    kill "$SSH_AGENT_PID" 2>/dev/null || true
   fi
   # Remove docker context
   docker context rm remote -f 2>/dev/null || true
-  # Remove temporary files
-  rm -f "$temp_passwd_file" 2>/dev/null || true
+  # Remove temporary files (only if temp_passwd_file was set)
+  [ -n "${temp_passwd_file+x}" ] && rm -f "$temp_passwd_file" 2>/dev/null || true
 }
 
 # Set trap for cleanup on exit and signals
@@ -156,6 +159,9 @@ fi
 STACK_FILE=${INPUT_STACK_FILE_NAME}
 DEPLOYMENT_COMMAND_OPTIONS=""
 
+# Build deployment command based on mode
+# Note: STACK_FILE is quoted with escaped quotes (\") because it's interpolated into the final command string
+# This ensures filenames with spaces don't break the command
 
 if [ "$INPUT_COPY_STACK_FILE" == "true" ]; then
   STACK_FILE="$INPUT_DEPLOY_PATH/$STACK_FILE"
@@ -166,11 +172,11 @@ fi
 case "$INPUT_DEPLOYMENT_MODE" in
 
   docker-swarm)
-    DEPLOYMENT_COMMAND="docker $DEPLOYMENT_COMMAND_OPTIONS stack deploy --compose-file $STACK_FILE"
+    DEPLOYMENT_COMMAND="docker $DEPLOYMENT_COMMAND_OPTIONS stack deploy --compose-file \"$STACK_FILE\""
   ;;
 
   docker-compose)
-    DEPLOYMENT_COMMAND="docker-compose -f $STACK_FILE $DEPLOYMENT_COMMAND_OPTIONS"
+    DEPLOYMENT_COMMAND="docker-compose -f \"$STACK_FILE\" $DEPLOYMENT_COMMAND_OPTIONS"
   ;;
 
   *)
@@ -213,11 +219,6 @@ fi
 if ! docker context use remote; then
   echo "Error: Failed to switch to docker context"
   exit 1
-fi
-
-# Initialize temp_passwd_file variable to avoid unbound variable error
-if [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] || [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
-  temp_passwd_file=""
 fi
 
 # Handle Docker registry authentication
