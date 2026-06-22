@@ -195,7 +195,7 @@ The action includes comprehensive input validation to prevent:
 #### `pre_deployment_command_args`
 - **Description**: Arguments for pre-deployment command (docker-compose mode only)
 - **Required**: false
-n- **Example**: `config`
+- **Example**: `config`
 
 #### `pull_images_first`
 - **Description**: Pull images before deployment (docker-compose mode only)
