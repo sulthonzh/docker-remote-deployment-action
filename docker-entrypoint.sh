@@ -63,6 +63,16 @@ validate_input() {
     esac
   fi
 
+  # Reject environment variable expansion in values that should be literal paths
+  if [[ "$input_name" != "args" && "$input_name" != "deploy_path" ]]; then
+    case "$input_value" in
+      *\$*|*\${*})
+        echo "Error: $input_name contains environment variable expansion patterns"
+        exit 1
+        ;;
+    esac
+  fi
+
   # Additional validation for specific inputs
   case "$input_name" in
     "remote_docker_port"|"keep_files")
