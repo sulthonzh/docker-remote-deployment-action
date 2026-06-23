@@ -53,8 +53,9 @@ validate_input() {
   fi
 
   # Check for path traversal attempts (..), absolute paths, and suspicious patterns
-  # Skip validation for args, deploy_path, and stack_file_name as they may need special characters
-  if [[ "$input_name" != "args" && "$input_name" != "deploy_path" && "$input_name" != "stack_file_name" ]]; then
+  # Skip validation for args and stack_file_name as they may need special characters
+  # deploy_path is validated to prevent shell metacharacter expansion
+  if [[ "$input_name" != "args" && "$input_name" != "stack_file_name" ]]; then
     case "$input_value" in
       *..*|/*|~*|\$*|\\${*}) 
         echo "Error: $input_name contains potentially dangerous path patterns" 
@@ -64,7 +65,8 @@ validate_input() {
   fi
 
   # Reject environment variable expansion in values that should be literal paths
-  if [[ "$input_name" != "args" && "$input_name" != "deploy_path" ]]; then
+  # deploy_path is included because it's expanded in shell commands, which could leak environment variables
+  if [[ "$input_name" != "args" ]]; then
     case "$input_value" in
       *\$*|*\${*})
         echo "Error: $input_name contains environment variable expansion patterns"
