@@ -75,6 +75,15 @@ validate_input() {
     esac
   fi
 
+  # Additional URL-specific validation for docker_registry_uri
+  # Allow : and / for URLs but block command substitution patterns
+  if [ "$input_name" = "docker_registry_uri" ]; then
+    if printf '%s' "$input_value" | grep -qE '\$\(|`|\$\{'; then
+      echo "Error: docker_registry_uri contains command substitution patterns"
+      exit 1
+    fi
+  fi
+
   # Additional validation for specific inputs
   case "$input_name" in
     "remote_docker_port"|"keep_files")
@@ -119,7 +128,7 @@ if [ -z "${INPUT_ARGS+x}" ]; then
   exit 1
 fi
 
-# Set defaults after validation
+# Set defaults BEFORE validation (to prevent validation failures on unset optional inputs)
 if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
   INPUT_DEPLOY_PATH=~/docker-deployment
 fi
@@ -128,11 +137,15 @@ if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
   INPUT_STACK_FILE_NAME=docker-compose.yml
 fi
 
+if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
+  INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
+fi
+
 # Enhanced input validation
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
-validate_input "docker_registry_uri" "${INPUT_DOCKER_REGISTRY_URI:-}"
+validate_input "docker_registry_uri" "$INPUT_DOCKER_REGISTRY_URI"
 # pre_deployment_command_args is optional, skip validation if empty
 if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ]; then
   validate_input "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
@@ -160,9 +173,7 @@ fi
 # Note: keep_files represents total versions to keep INCLUDING the currently deployed one.
 # Example: keep_files=4 means current version + up to 3 previous versions (total 4).
 
-if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
-  INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
-fi
+# Default already set above before validation
 
 if [ -z "${INPUT_COPY_STACK_FILE+x}" ]; then
   INPUT_COPY_STACK_FILE=false
