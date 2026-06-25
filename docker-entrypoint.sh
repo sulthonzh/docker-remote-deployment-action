@@ -141,13 +141,18 @@ if [ -z "${INPUT_DOCKER_REGISTRY_URI+x}" ]; then
   INPUT_DOCKER_REGISTRY_URI=https://registry.hub.docker.com
 fi
 
+if [ -z "${INPUT_DEPLOYMENT_MODE+x}" ]; then
+  INPUT_DEPLOYMENT_MODE=docker-compose
+fi
+
 # Enhanced input validation
 validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
 validate_input "docker_registry_uri" "$INPUT_DOCKER_REGISTRY_URI"
-# pre_deployment_command_args is optional, skip validation if empty
-if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ]; then
+# pre_deployment_command_args is optional and docker-compose mode only per action.yml.
+# Set INPUT_DEPLOYMENT_MODE default to docker-compose before validating so the check works correctly.
+if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ]; then
   validate_input "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
 fi
 
@@ -292,7 +297,7 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
     execute_ssh "${DEPLOYMENT_COMMAND} pull"
   fi
 
-  if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
+  if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] ; then
     echo "Running pre-deployment command: $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
     execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
