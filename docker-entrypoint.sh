@@ -47,10 +47,21 @@ validate_input() {
 
   # Check for shell metacharacters that could cause command injection
   # Enhanced regex pattern that covers various shell injection vectors
-  if printf '%s' "$input_value" | grep -qE '[;&|`$()\"'"'"']'; then
+  # Includes redirection operators (<>), separators (;&|), substitution ($()),
+  # quoting ("'), and backtick command substitution
+  if printf '%s' "$input_value" | grep -qE '[;&|`$()<>\"'"'"']'; then
     echo "Error: $input_name contains dangerous characters that could cause command injection"
     exit 1
   fi
+
+  # Check for control characters (newline, carriage return, tab, null, etc.)
+  # These can bypass the metacharacter check but still cause command injection via eval
+  case "$input_value" in
+    *$'\n'*|*$'\r'*|*$'\t'*|*$'\000'*)
+      echo "Error: $input_name contains control characters (newline/tab/null)"
+      exit 1
+      ;;
+  esac
 
   # Check for path traversal attempts (..), absolute paths, and suspicious patterns
   # Skip validation for args and stack_file_name as they may need special characters
