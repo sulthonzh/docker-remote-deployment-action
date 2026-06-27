@@ -174,6 +174,10 @@ if ! [[ "$INPUT_KEEP_FILES" =~ ^[0-9]+$ ]]; then
   echo "Error: keep_files must be a positive integer: $INPUT_KEEP_FILES"
   exit 1
 fi
+if [ "$INPUT_KEEP_FILES" -lt 1 ]; then
+  echo "Error: keep_files must be at least 1: $INPUT_KEEP_FILES"
+  exit 1
+fi
 
 # Note: keep_files represents total versions to keep INCLUDING the currently deployed one.
 # Example: keep_files=4 means current version + up to 3 previous versions (total 4).
