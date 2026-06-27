@@ -54,14 +54,23 @@ validate_input() {
 
   # Check for path traversal attempts (..), absolute paths, and suspicious patterns
   # Skip validation for args and stack_file_name as they may need special characters
-  # deploy_path is validated to prevent shell metacharacter expansion
+  # deploy_path legitimately uses absolute paths (/opt/...) and home expansion (~/...)
+  # so it is exempted from the /* and ~* checks, but still checked for ..
   if [[ "$input_name" != "args" && "$input_name" != "stack_file_name" ]]; then
     case "$input_value" in
-      *..*|/*|~*|\$*|\\${*}) 
-        echo "Error: $input_name contains potentially dangerous path patterns" 
-        exit 1 
+      *..*)
+        echo "Error: $input_name contains path traversal patterns (..)"
+        exit 1
         ;;
     esac
+    if [[ "$input_name" != "deploy_path" ]]; then
+      case "$input_value" in
+        /*|~*|\$*|\\${*})
+          echo "Error: $input_name contains potentially dangerous path patterns"
+          exit 1
+          ;;
+      esac
+    fi
   fi
 
   # Reject environment variable expansion in values that should be literal paths
