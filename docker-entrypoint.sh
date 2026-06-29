@@ -83,9 +83,16 @@ validate_input() {
       esac
     fi
   fi
+}
 
-  # Reject environment variable expansion in values that should be literal paths
-  # deploy_path is included because it's expanded in shell commands, which could leak environment variables
+# Reject environment variable expansion in values that should be literal paths
+# Must run after main validate_input to ensure it applies to all inputs including exempted ones
+# deploy_path is checked because it's expanded in shell commands, which could leak environment variables
+# args is excluded because it needs to pass through as-is to docker-compose/docker-swarm
+validate_env_expansion() {
+  local input_name="$1"
+  local input_value="$2"
+
   if [[ "$input_name" != "args" ]]; then
     case "$input_value" in
       *\$*|*\${*})
@@ -170,10 +177,17 @@ validate_input "args" "$INPUT_ARGS"
 validate_input "deploy_path" "$INPUT_DEPLOY_PATH"
 validate_input "stack_file_name" "$INPUT_STACK_FILE_NAME"
 validate_input "docker_registry_uri" "$INPUT_DOCKER_REGISTRY_URI"
+
+# Validate environment variable expansion separately (applies to all inputs except args)
+validate_env_expansion "args" "$INPUT_ARGS"
+validate_env_expansion "deploy_path" "$INPUT_DEPLOY_PATH"
+validate_env_expansion "stack_file_name" "$INPUT_STACK_FILE_NAME"
+validate_env_expansion "docker_registry_uri" "$INPUT_DOCKER_REGISTRY_URI"
 # pre_deployment_command_args is optional and docker-compose mode only per action.yml.
 # Set INPUT_DEPLOYMENT_MODE default to docker-compose before validating so the check works correctly.
 if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ]; then
   validate_input "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
+  validate_env_expansion "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
 fi
 
 # Set default for KEEP_FILES before validating
