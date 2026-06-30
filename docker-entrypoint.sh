@@ -266,9 +266,10 @@ chmod 600 ~/.ssh/id_rsa.pub
 eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
 
-echo "Add known hosts"
-ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: Could not scan SSH host key"
-ssh-keyscan -p "$INPUT_REMOTE_DOCKER_PORT" "$SSH_HOST" >> /etc/ssh/ssh_known_hosts 2>/dev/null || echo "Warning: Could not update system known_hosts"
+# Note: ssh-keyscan is intentionally omitted. Both execute_ssh and scp use
+# UserKnownHostsFile=/dev/null + StrictHostKeyChecking=no, so known_hosts is
+# never consulted. Running keyscan adds 5-10s latency and can hang on
+# unreachable hosts for the full SSH timeout period.
 
 # Set context
 echo "Create docker context"
@@ -330,9 +331,13 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] 
   execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
 
   # Handle pre-deployment commands
-  if [ -n "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] ; then
-    echo "Pulling images first..."
-    execute_ssh "${DEPLOYMENT_COMMAND} pull"
+  if [ -n "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ]; then
+    if [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ]; then
+      echo "Pulling images first..."
+      execute_ssh "${DEPLOYMENT_COMMAND} pull"
+    else
+      echo "Warning: pull_images_first is not supported in docker-swarm mode. Swarm pulls images on the nodes automatically. Ignoring."
+    fi
   fi
 
   if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] ; then
