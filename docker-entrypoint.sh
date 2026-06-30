@@ -76,7 +76,7 @@ validate_input() {
     esac
     if [[ "$input_name" != "deploy_path" ]]; then
       case "$input_value" in
-        /*|~*|\$*|\\${*})
+        /*|~*|\$*|\${*})
           echo "Error: $input_name contains potentially dangerous path patterns"
           exit 1
           ;;
@@ -95,7 +95,7 @@ validate_env_expansion() {
 
   if [[ "$input_name" != "args" ]]; then
     case "$input_value" in
-      *\$*|*\${*})
+      *\$*|\${*})
         echo "Error: $input_name contains environment variable expansion patterns"
         exit 1
         ;;
