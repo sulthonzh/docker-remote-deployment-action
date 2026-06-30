@@ -252,8 +252,6 @@ case "$INPUT_DEPLOYMENT_MODE" in
 esac
 
 
-SSH_HOST=${INPUT_REMOTE_DOCKER_HOST#*@}
-
 echo "Registering SSH keys..."
 
 # register the private key with the agent.
@@ -305,10 +303,10 @@ fi
 
 # Handle Docker system prune with warning
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
-  echo "WARNING: This will remove unused images, containers, networks, and volumes."
+  echo "WARNING: This will remove all unused images, containers, and networks."
   echo "This is a destructive operation that cannot be undone."
-  echo "WARNING: docker system prune -a does NOT remove volumes by default."
-  echo "To remove volumes, add --volumes flag. This is a destructive operation."
+  echo "Note: docker system prune -a does NOT remove volumes by default."
+  echo "To remove volumes too, add --volumes flag to the prune command."
   echo "Proceeding with docker prune automatically..."
   if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f; then
     echo "Error: Docker prune failed"
