@@ -23,13 +23,13 @@ cleanup() {
 trap cleanup EXIT SIGINT SIGTERM ERR
 
 execute_ssh(){
-  echo "Execute Over SSH: $@"
+  echo "Execute Over SSH: $*"
   if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -p "$INPUT_REMOTE_DOCKER_PORT" \
       "$INPUT_REMOTE_DOCKER_HOST" "$@"; then
-    echo "Error: SSH command failed: $@"
+    echo "Error: SSH command failed: $*"
     exit 1
   fi
 }
@@ -315,7 +315,7 @@ if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; th
 fi
 
 # Handle stack file copying and deployment
-if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ $INPUT_COPY_STACK_FILE = 'true' ] ; then
+if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
   execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH\"/stacks || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 

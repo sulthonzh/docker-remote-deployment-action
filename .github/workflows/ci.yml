@@ -49,13 +49,9 @@ jobs:
 
   build-image:
     runs-on: ubuntu-latest
-    needs: [shell-lint, validate-yaml]
+    needs: [shell-lint, dockerfile-lint, validate-yaml]
     steps:
       - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build -t sulthonzh/docker-remote-deployment-action:test .
-        shell: bash
-
-      - name: Test image can run
-        run: docker run --rm sulthonzh/docker-remote-deployment-action:test /bin/true || docker run --rm sulthonzh/docker-remote-deployment-action:test bash -c "exit 0"
+      - name: Test image runs
+        run: docker run --rm $(docker build -q .) bash -c "exit 0"
         shell: bash
