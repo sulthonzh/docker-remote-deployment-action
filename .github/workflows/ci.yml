@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shell-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint shell script
+        run: bash -n docker-entrypoint.sh
+        shell: bash
+
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Dockerfile
+        run: docker build --no-cache -t test-action . || exit 1
+        shell: bash
+
+  validate-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate action.yml
+        run: |
+          # Basic validation: check if action.yml is valid YAML
+          python3 -c "import yaml; yaml.safe_load(open('action.yml'))" || exit 1
+        shell: bash
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Security scan with ShellCheck
+        run: |
+          # Install ShellCheck if not available
+          if ! command -v shellcheck &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          fi
+          shellcheck docker-entrypoint.sh || exit 1
+        shell: bash
+        continue-on-error: true
+
+  build-image:
+    runs-on: ubuntu-latest
+    needs: [shell-lint, validate-yaml]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t sulthonzh/docker-remote-deployment-action:test .
+        shell: bash
+
+      - name: Test image can run
+        run: docker run --rm sulthonzh/docker-remote-deployment-action:test /bin/true || docker run --rm sulthonzh/docker-remote-deployment-action:test bash -c "exit 0"
+        shell: bash
