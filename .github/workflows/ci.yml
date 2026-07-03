@@ -45,7 +45,6 @@ jobs:
           fi
           shellcheck docker-entrypoint.sh || exit 1
         shell: bash
-        continue-on-error: true
 
   build-image:
     runs-on: ubuntu-latest
