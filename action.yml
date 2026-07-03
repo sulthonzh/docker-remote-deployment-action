@@ -38,7 +38,7 @@ inputs:
     required: false
     default: '4'
   docker_prune:
-    description: 'Run docker system prune after deployment. Removes unused images, containers, networks, and volumes. WARNING: Does NOT remove volumes by default. Use with caution.'
+    description: 'Run docker system prune after deployment. Removes unused images, containers, and networks. Does NOT remove volumes by default. Use with caution.'
     required: false
     default: 'false'
   pre_deployment_command_args:

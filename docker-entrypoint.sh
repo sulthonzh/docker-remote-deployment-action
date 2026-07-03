@@ -135,10 +135,16 @@ if [ -z "${INPUT_REMOTE_DOCKER_HOST+x}" ]; then
 fi
 
 # Validate remote_docker_host format (should be user@host)
-if ! echo "$INPUT_REMOTE_DOCKER_HOST" | grep -qE '^[^@]+@[^@]+$'; then
-  echo "Error: remote_docker_host must be in format 'user@host': $INPUT_REMOTE_DOCKER_HOST"
+# Use printf instead of echo to avoid flag injection (-e/-n/-E interpreted by echo)
+if ! printf '%s' "$INPUT_REMOTE_DOCKER_HOST" | grep -qE '^[^@]+@[^@]+$'; then
+  echo "Error: remote_docker_host must be in format 'user@host'"
   exit 1
 fi
+
+# Validate remote_docker_host for shell metacharacters and control characters
+# (was previously only format-checked, missing security validation)
+validate_input "remote_docker_host" "$INPUT_REMOTE_DOCKER_HOST"
+validate_env_expansion "remote_docker_host" "$INPUT_REMOTE_DOCKER_HOST"
 
 if [ -z "${INPUT_SSH_PUBLIC_KEY+x}" ]; then
     echo "Input ssh_public_key is required!"
