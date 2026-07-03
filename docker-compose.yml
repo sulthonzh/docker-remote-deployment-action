@@ -38,7 +38,7 @@ services:
 
   # Example application service
   app:
-    image: node:18-alpine
+    image: node:22-alpine
     container_name: docker-deployment-app
     working_dir: /app
     command: node server.js

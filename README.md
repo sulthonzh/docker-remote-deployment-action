@@ -25,8 +25,10 @@ The Action is adapted from work by [wshihadeh](https://github.com/wshihadeh/dock
     remote_docker_host: user@server.com
     ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
     ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-    args: -f docker-compose.yaml up -d
+    args: up -d
 ```
+
+> **Note:** The action automatically passes `-f <stack_file_name>` to docker-compose. Use the `stack_file_name` input to specify a custom compose file — do **not** pass `-f` in `args`, or Docker Compose will receive two `-f` flags and attempt to merge non-existent files.
 
 ## Examples
 
