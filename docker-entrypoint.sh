@@ -307,19 +307,6 @@ if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGI
   # temp_passwd_file will be cleaned up by the cleanup function
 fi
 
-# Handle Docker system prune with warning
-if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
-  echo "WARNING: This will remove all unused images, containers, and networks."
-  echo "This is a destructive operation that cannot be undone."
-  echo "Note: docker system prune -a does NOT remove volumes by default."
-  echo "To remove volumes too, add --volumes flag to the prune command."
-  echo "Proceeding with docker prune automatically..."
-  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f; then
-    echo "Error: Docker prune failed"
-    exit 1
-  fi
-fi
-
 # Handle stack file copying and deployment
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
   execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH\"/stacks || true"
@@ -356,4 +343,17 @@ else
   # Use eval to safely execute the command string, preserving spacing and special characters in arguments
   # Variables are validated earlier to prevent command injection
   eval "${DEPLOYMENT_COMMAND} ${INPUT_ARGS}" 2>&1
+fi
+
+# Handle Docker system prune AFTER deployment
+if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
+  echo "WARNING: This will remove all unused images, containers, and networks."
+  echo "This is a destructive operation that cannot be undone."
+  echo "Note: docker system prune -a does NOT remove volumes by default."
+  echo "To remove volumes too, add --volumes flag to the prune command."
+  echo "Proceeding with docker prune automatically..."
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f; then
+    echo "Error: Docker prune failed"
+    exit 1
+  fi
 fi

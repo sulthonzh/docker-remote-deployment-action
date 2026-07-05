@@ -77,7 +77,8 @@ The Action is adapted from work by [wshihadeh](https://github.com/wshihadeh/dock
     remote_docker_host: deploy@registry.com
     ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
     ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-    args: -f docker-compose.yml up -d
+    args: up -d
+    stack_file_name: docker-compose.yml
     copy_stack_file: true
     docker_registry_username: ${{ secrets.REGISTRY_USERNAME }}
     docker_registry_password: ${{ secrets.REGISTRY_PASSWORD }}
