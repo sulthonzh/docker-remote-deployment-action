@@ -321,7 +321,14 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH\"/stacks/$FILE_NAME \"$INPUT_DEPLOY_PATH\"/$INPUT_STACK_FILE_NAME"
   execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
 
-  # Handle pre-deployment commands
+  # Pre-deployment validation should run BEFORE pulling images to fail fast.
+  # E.g., 'docker-compose config' validates the file — if it fails, skip the
+  # expensive image pull and deployment entirely.
+  if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] ; then
+    echo "Running pre-deployment command: $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
+    execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
+  fi
+
   if [ -n "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ]; then
     if [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ]; then
       echo "Pulling images first..."
@@ -329,11 +336,6 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
     else
       echo "Warning: pull_images_first is not supported in docker-swarm mode. Swarm pulls images on the nodes automatically. Ignoring."
     fi
-  fi
-
-  if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ] ; then
-    echo "Running pre-deployment command: $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
-    execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" 2>&1
   fi
 
   echo "Running deployment command: $INPUT_ARGS"
