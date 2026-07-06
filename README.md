@@ -196,12 +196,12 @@ The action includes comprehensive input validation to prevent:
 - **⚠️ Warning**: This is destructive and removes unused images, containers, and networks. By default it does NOT remove volumes.
 
 #### `pre_deployment_command_args`
-- **Description**: Arguments for pre-deployment command (docker-compose mode only). Runs before image pulling and deployment, allowing early validation (e.g., `config` to verify the compose file).
+- **Description**: Arguments for pre-deployment command (docker-compose mode only). Runs before image pulling and deployment, allowing early validation (e.g., `config` to verify the compose file). Works regardless of `copy_stack_file` setting.
 - **Required**: false
 - **Example**: `config`
 
 #### `pull_images_first`
-- **Description**: Pull images before deployment (docker-compose mode only)
+- **Description**: Pull images before deployment (docker-compose mode only). Works regardless of `copy_stack_file` setting.
 - **Required**: false
 - **Default**: `false`
 - **Example**: `true`

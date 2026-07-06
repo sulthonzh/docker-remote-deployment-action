@@ -342,6 +342,24 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "${DEPLOYMENT_COMMAND}" "$INPUT_ARGS" 2>&1
 else
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: ${DEPLOYMENT_COMMAND} ${INPUT_ARGS}"
+
+  # Pre-deployment validation should run BEFORE pulling images to fail fast.
+  # E.g., 'docker-compose config' validates the file — if it fails, skip the
+  # expensive image pull and deployment entirely.
+  if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ] && [ -n "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS" ]; then
+    echo "Running pre-deployment command: $INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
+    eval "${DEPLOYMENT_COMMAND} ${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS}" 2>&1
+  fi
+
+  if [ -n "${INPUT_PULL_IMAGES_FIRST+x}" ] && [ "$INPUT_PULL_IMAGES_FIRST" = 'true' ]; then
+    if [ "$INPUT_DEPLOYMENT_MODE" = 'docker-compose' ]; then
+      echo "Pulling images first..."
+      eval "${DEPLOYMENT_COMMAND} pull" 2>&1
+    else
+      echo "Warning: pull_images_first is not supported in docker-swarm mode. Swarm pulls images on the nodes automatically. Ignoring."
+    fi
+  fi
+
   # Use eval to safely execute the command string, preserving spacing and special characters in arguments
   # Variables are validated earlier to prevent command injection
   eval "${DEPLOYMENT_COMMAND} ${INPUT_ARGS}" 2>&1
