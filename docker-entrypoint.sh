@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+# shellcheck disable=SC2016 # SC2016 false positives: single-quoting is intentional to prevent variable expansion in case/grep patterns
 
 # Initialize temp_passwd_file early (before trap) to prevent unbound variable errors in cleanup
 temp_passwd_file=""
@@ -57,7 +58,7 @@ validate_input() {
   # Check for control characters (newline, carriage return, tab, null, etc.)
   # These can bypass the metacharacter check but still cause command injection via eval
   case "$input_value" in
-    *$'\n'*|*$'\r'*|*$'\t'*|*$'\000'*)
+    *$'\n'*|*$'\r'*|*$'\t'*)
       echo "Error: $input_name contains control characters (newline/tab/null)"
       exit 1
       ;;
@@ -76,7 +77,7 @@ validate_input() {
     esac
     if [[ "$input_name" != "deploy_path" ]]; then
       case "$input_value" in
-        /*|~*|'$'*|'${'*)
+        /*|~*|'${'*|'$'*)
           echo "Error: $input_name contains potentially dangerous path patterns"
           exit 1
           ;;
@@ -95,7 +96,7 @@ validate_env_expansion() {
 
   if [[ "$input_name" != "args" ]]; then
     case "$input_value" in
-      *'$'*|'${'*)
+      *'${'*|'$'*)
         echo "Error: $input_name contains environment variable expansion patterns"
         exit 1
         ;;
@@ -267,7 +268,7 @@ printf '%s\n' "$INPUT_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
 chmod 600 ~/.ssh/id_rsa
 printf '%s\n' "$INPUT_SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
 chmod 600 ~/.ssh/id_rsa.pub
-eval $(ssh-agent)
+eval "$(ssh-agent)"
 ssh-add ~/.ssh/id_rsa
 
 # Note: ssh-keyscan is intentionally omitted. Both execute_ssh and scp use

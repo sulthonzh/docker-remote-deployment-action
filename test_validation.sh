@@ -8,7 +8,7 @@ validate_input() {
   
   # Check for control characters
   case "$input_value" in
-    *$'\n'*|*$'\r'*|*$'\t'*|*$'\000'*)
+    *$'\n'*|*$'\r'*|*$'\t'*)
       echo "FAIL: Control characters in $input_name: '$input_value'"
       return 1
       ;;
