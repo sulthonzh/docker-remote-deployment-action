@@ -20,8 +20,11 @@ cleanup() {
   [ -n "${temp_passwd_file+x}" ] && rm -f "$temp_passwd_file" 2>/dev/null || true
 }
 
-# Set trap for cleanup on exit and signals
-trap cleanup EXIT SIGINT SIGTERM ERR
+# Set trap for cleanup on exit and signals.
+# ERR is intentionally omitted: under 'set -e', a failing command triggers ERR trap
+# (running cleanup), then the script exits triggering EXIT trap (running cleanup again).
+# EXIT alone covers all exit paths including signal-terminated and set -e failures.
+trap cleanup EXIT SIGINT SIGTERM
 
 execute_ssh(){
   echo "Execute Over SSH: $*"
@@ -320,7 +323,7 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
       "$INPUT_STACK_FILE_NAME" "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
 
   execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH\"/stacks/$FILE_NAME \"$INPUT_DEPLOY_PATH\"/$INPUT_STACK_FILE_NAME"
-  execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
+  execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((10#$INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
 
   # Pre-deployment validation should run BEFORE pulling images to fail fast.
   # E.g., 'docker-compose config' validates the file — if it fails, skip the
