@@ -24,7 +24,8 @@ services:
     environment:
       POSTGRES_DB: myapp
       POSTGRES_USER: myuser
-      # POSTGRES_PASSWORD: # Set this as an environment variable in production
+      # Change this password and set it via secrets/env vars in production
+      POSTGRES_PASSWORD: changeme
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -48,7 +49,7 @@ services:
       DB_HOST: db
       DB_NAME: myapp
       DB_USER: myuser
-      DB_PASSWORD: mypassword
+      DB_PASSWORD: changeme
     volumes:
       - ./src:/app/src:ro
     networks:
@@ -58,7 +59,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
