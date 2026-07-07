@@ -279,7 +279,7 @@ ssh-add ~/.ssh/id_rsa
 # Set context
 echo "Create docker context"
 # Remove existing context if it exists to avoid conflicts
-if docker context ls 2>/dev/null | grep -q "remote"; then
+if docker context ls 2>/dev/null | grep -qw "remote"; then
   docker context rm remote -f 2>/dev/null || echo "Warning: Could not remove existing remote context"
 fi
 
