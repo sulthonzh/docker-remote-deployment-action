@@ -297,7 +297,7 @@ if ! docker context use remote; then
 fi
 
 # Handle Docker registry authentication
-if ! [ -z "${INPUT_DOCKER_REGISTRY_USERNAME+x}" ] && ! [ -z "${INPUT_DOCKER_REGISTRY_PASSWORD+x}" ]; then
+if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY_PASSWORD:-}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
   # Use a temporary file for the password to avoid leaving it in process lists
   temp_passwd_file="$(mktemp)"
