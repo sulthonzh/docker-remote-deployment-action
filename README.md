@@ -124,6 +124,7 @@ The action includes comprehensive input validation to prevent:
 - Remote docker contexts are properly isolated
 - Existing contexts are removed to prevent conflicts
 - Secure authentication to private registries
+- When `copy_stack_file=true`, registry login is performed on the remote host too (deployment runs via SSH, so the remote Docker daemon needs its own credentials)
 
 ## Input Configurations
 

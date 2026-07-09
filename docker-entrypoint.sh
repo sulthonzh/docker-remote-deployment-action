@@ -297,6 +297,9 @@ if ! docker context use remote; then
 fi
 
 # Handle Docker registry authentication
+# Login runs BOTH locally and remotely (when copy_stack_file=true) because:
+# - copy_stack_file=false: docker-compose runs locally with --host ssh://, client sends auth to daemon
+# - copy_stack_file=true: docker-compose runs on remote via SSH, remote daemon needs its own credentials
 if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY_PASSWORD:-}" ]; then
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
   # Use a temporary file for the password to avoid leaving it in process lists
@@ -307,6 +310,24 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
     echo "Error: Docker login failed"
     cleanup
     exit 1
+  fi
+  # Also login on the remote server when copy_stack_file=true, since deployment commands
+  # run via SSH on the remote host and the remote Docker daemon needs its own credentials
+  if [ "$INPUT_COPY_STACK_FILE" = 'true' ]; then
+    echo "Running docker login on remote host..."
+    # Copy password file to remote, login, then remove it
+    remote_passwd="/tmp/.docker-passwd-$$"
+    scp -q -i "$HOME/.ssh/id_rsa" \
+        -o UserKnownHostsFile=/dev/null \
+        -o StrictHostKeyChecking=no \
+        -P "$INPUT_REMOTE_DOCKER_PORT" \
+        "$temp_passwd_file" "$INPUT_REMOTE_DOCKER_HOST:$remote_passwd" 2>/dev/null
+    if ! execute_ssh "docker login -u '$INPUT_DOCKER_REGISTRY_USERNAME' --password-file '$remote_passwd' '$INPUT_DOCKER_REGISTRY_URI' && rm -f '$remote_passwd'"; then
+      echo "Error: Remote docker login failed"
+      execute_ssh "rm -f '$remote_passwd' 2>/dev/null || true"
+      cleanup
+      exit 1
+    fi
   fi
   # temp_passwd_file will be cleaned up by the cleanup function
 fi
