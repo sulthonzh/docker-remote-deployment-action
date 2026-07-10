@@ -15,7 +15,7 @@ inputs:
     description: 'SSH private key content for authentication with remote host.'
     required: true
   args:
-    description: 'Deployment command arguments. Examples: "up -d" for compose, "deploy my-stack" for swarm. Input is validated to prevent command injection.'
+    description: 'Deployment command arguments. Examples: "up -d" for compose, "my-stack" for swarm (stack name only). Input is validated to prevent command injection.'
     required: true
   deployment_mode:
     description: 'Deployment mode. docker-compose for Compose files, docker-swarm for Swarm mode.'

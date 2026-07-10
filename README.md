@@ -59,7 +59,7 @@ The Action is adapted from work by [wshihadeh](https://github.com/wshihadeh/dock
     remote_docker_host: admin@swarm-cluster.com
     ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
     ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-    args: deploy my-app-stack
+    args: my-app-stack
     deployment_mode: docker-swarm
     copy_stack_file: true
     deploy_path: /opt/swarm-deployments
@@ -148,7 +148,7 @@ The action includes comprehensive input validation to prevent:
 #### `args`
 - **Description**: Deployment command arguments
 - **Required**: true
-- **Example**: `up -d` for docker-compose, `deploy my_stack` for swarm
+- **Example**: `up -d` for docker-compose, `my_stack` for swarm (stack name only — `stack deploy` is already included in the command)
 
 ### Optional Inputs
 
