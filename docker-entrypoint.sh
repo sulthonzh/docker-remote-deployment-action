@@ -9,17 +9,8 @@ remote_passwd=""
 # Cleanup function to remove SSH keys and agent
 cleanup() {
   echo "Cleaning up..."
-  # Remove SSH keys
-  rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub 2>/dev/null || true
-  # Kill SSH agent if running
-  if [ -n "${SSH_AGENT_PID+x}" ] && [ -n "$SSH_AGENT_PID" ]; then
-    kill "$SSH_AGENT_PID" 2>/dev/null || true
-  fi
-  # Remove docker context
-  docker context rm remote -f 2>/dev/null || true
-  # Remove local temporary password file
-  [ -n "${temp_passwd_file+x}" ] && rm -f "$temp_passwd_file" 2>/dev/null || true
-  # Remove remote temporary password file (best-effort; may fail if SSH is down)
+  # Remove remote temporary password file FIRST (needs SSH keys still present)
+  # Must run before SSH key removal below, otherwise SSH auth fails silently
   if [ -n "${remote_passwd+x}" ] && [ -n "$remote_passwd" ] && [ -n "${INPUT_REMOTE_DOCKER_HOST+x}" ] && [ -n "$INPUT_REMOTE_DOCKER_HOST" ]; then
     ssh -q -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
@@ -27,6 +18,16 @@ cleanup() {
       -p "${INPUT_REMOTE_DOCKER_PORT:-22}" \
       "$INPUT_REMOTE_DOCKER_HOST" "rm -f \"$remote_passwd\" 2>/dev/null || true" 2>/dev/null || true
   fi
+  # Remove docker context (before killing SSH agent)
+  docker context rm remote -f 2>/dev/null || true
+  # Remove local temporary password file
+  [ -n "${temp_passwd_file+x}" ] && rm -f "$temp_passwd_file" 2>/dev/null || true
+  # Kill SSH agent if running
+  if [ -n "${SSH_AGENT_PID+x}" ] && [ -n "$SSH_AGENT_PID" ]; then
+    kill "$SSH_AGENT_PID" 2>/dev/null || true
+  fi
+  # Remove SSH keys LAST (after all SSH-dependent cleanup is done)
+  rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub 2>/dev/null || true
 }
 
 # Set trap for cleanup on exit and signals.
