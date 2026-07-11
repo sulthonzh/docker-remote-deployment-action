@@ -38,7 +38,10 @@ trap cleanup EXIT SIGINT SIGTERM
 
 execute_ssh(){
   echo "Execute Over SSH: $*"
-  if ! ssh -q -t -i "$HOME/.ssh/id_rsa" \
+  # -t (PTY allocation) intentionally omitted: CI commands are non-interactive.
+  # PTY merges stdout/stderr, can truncate at terminal width, and may hang if
+  # remote background processes inherit the PTY.
+  if ! ssh -q -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -p "$INPUT_REMOTE_DOCKER_PORT" \
@@ -63,7 +66,7 @@ validate_input() {
   # Enhanced regex pattern that covers various shell injection vectors
   # Includes redirection operators (<>), separators (;&|), substitution ($()),
   # quoting ("'), and backtick command substitution
-  if printf '%s' "$input_value" | grep -qE '[;&|`$()<>\"'"'"']'; then
+  if printf '%s' "$input_value" | grep -qE '[;&|`$()<>{}\"'"'"']'; then
     echo "Error: $input_name contains dangerous characters that could cause command injection"
     exit 1
   fi
@@ -354,7 +357,7 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH\"/stacks || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 
-  scp -i "$HOME/.ssh/id_rsa" \
+  scp -q -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -P "$INPUT_REMOTE_DOCKER_PORT" \
