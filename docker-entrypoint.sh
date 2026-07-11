@@ -2,8 +2,9 @@
 set -euo pipefail
 # shellcheck disable=SC2016 # SC2016 false positives: single-quoting is intentional to prevent variable expansion in case/grep patterns
 
-# Initialize temp_passwd_file early (before trap) to prevent unbound variable errors in cleanup
+# Initialize temp files early (before trap) to prevent unbound variable errors in cleanup
 temp_passwd_file=""
+remote_passwd=""
 
 # Cleanup function to remove SSH keys and agent
 cleanup() {
@@ -16,8 +17,16 @@ cleanup() {
   fi
   # Remove docker context
   docker context rm remote -f 2>/dev/null || true
-  # Remove temporary files (only if temp_passwd_file was set)
+  # Remove local temporary password file
   [ -n "${temp_passwd_file+x}" ] && rm -f "$temp_passwd_file" 2>/dev/null || true
+  # Remove remote temporary password file (best-effort; may fail if SSH is down)
+  if [ -n "${remote_passwd+x}" ] && [ -n "$remote_passwd" ] && [ -n "${INPUT_REMOTE_DOCKER_HOST+x}" ] && [ -n "$INPUT_REMOTE_DOCKER_HOST" ]; then
+    ssh -q -i "$HOME/.ssh/id_rsa" \
+      -o UserKnownHostsFile=/dev/null \
+      -o StrictHostKeyChecking=no \
+      -p "${INPUT_REMOTE_DOCKER_PORT:-22}" \
+      "$INPUT_REMOTE_DOCKER_HOST" "rm -f \"$remote_passwd\" 2>/dev/null || true" 2>/dev/null || true
+  fi
 }
 
 # Set trap for cleanup on exit and signals.
@@ -321,6 +330,8 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
   if [ "$INPUT_COPY_STACK_FILE" = 'true' ]; then
     echo "Running docker login on remote host..."
     # Copy password file to remote, login, then remove it
+    # remote_passwd is initialized at the top of the script so cleanup() can
+    # remove it if the script exits before the login/cleanup sequence completes.
     remote_passwd="/tmp/.docker-passwd-$$"
     scp -q -i "$HOME/.ssh/id_rsa" \
         -o UserKnownHostsFile=/dev/null \
