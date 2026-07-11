@@ -301,6 +301,11 @@ fi
 # - copy_stack_file=false: docker-compose runs locally with --host ssh://, client sends auth to daemon
 # - copy_stack_file=true: docker-compose runs on remote via SSH, remote daemon needs its own credentials
 if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY_PASSWORD:-}" ]; then
+  # Validate username to prevent command injection — it's interpolated into a
+  # single-quoted string sent to the remote shell via execute_ssh. A single quote
+  # in the username would break out of the quoting context.
+  validate_input "docker_registry_username" "$INPUT_DOCKER_REGISTRY_USERNAME"
+  validate_env_expansion "docker_registry_username" "$INPUT_DOCKER_REGISTRY_USERNAME"
   echo "Connecting to $INPUT_REMOTE_DOCKER_HOST... Command: docker login"
   # Use a temporary file for the password to avoid leaving it in process lists
   temp_passwd_file="$(mktemp)"
