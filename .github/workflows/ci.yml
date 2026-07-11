@@ -51,6 +51,9 @@ jobs:
     needs: [shell-lint, dockerfile-lint, validate-yaml]
     steps:
       - uses: actions/checkout@v4
-      - name: Test image runs
-        run: docker run --rm $(docker build -q .) bash -c "exit 0"
+      - name: Test image builds and entrypoint is executable
+        run: |
+          docker build --no-cache -t test-action .
+          # Verify the entrypoint script has execute permission inside the image
+          docker run --rm --entrypoint /bin/sh test-action -c 'test -x /docker-entrypoint.sh && echo "entrypoint OK" || { echo "entrypoint NOT executable"; exit 1; }'
         shell: bash
