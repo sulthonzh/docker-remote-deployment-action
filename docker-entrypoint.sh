@@ -182,6 +182,14 @@ fi
 if [ -z "${INPUT_DEPLOY_PATH+x}" ]; then
   INPUT_DEPLOY_PATH=~/docker-deployment
 fi
+# Expand leading tilde → $HOME. GitHub Actions passes action.yml defaults (e.g.
+# '~/docker-deployment') via environment variables, where bash does NOT perform
+# tilde expansion. Without this, every downstream usage (execute_ssh, scp,
+# DEPLOYMENT_COMMAND construction) receives the literal '~' character, which
+# POSIX shells will not expand inside double quotes — creating a literal '~'
+# directory on the remote host.
+# Using eval would be unsafe; this parameter expansion is shell-safe.
+INPUT_DEPLOY_PATH="${INPUT_DEPLOY_PATH/#\~/$HOME}"
 
 if [ -z "${INPUT_STACK_FILE_NAME+x}" ]; then
   INPUT_STACK_FILE_NAME=docker-compose.yml
