@@ -413,11 +413,17 @@ fi
 # Handle Docker system prune AFTER deployment
 if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
   echo "WARNING: This will remove all unused images, containers, and networks."
-  echo "This is a destructive operation that cannot be undone."
-  echo "Note: docker system prune -a does NOT remove volumes by default."
-  echo "To remove volumes too, add --volumes flag to the prune command."
+  if [ "${INPUT_PRUNE_VOLUMES:-false}" = 'true' ]; then
+    echo "WARNING: --volumes flag is set. Unused volumes WILL ALSO BE REMOVED. This is irreversible."
+  else
+    echo "Note: docker system prune -a does NOT remove volumes by default. Set prune_volumes=true to also remove volumes."
+  fi
   echo "Proceeding with docker prune automatically..."
-  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune -a -f; then
+  PRUNE_FLAGS="-a -f"
+  if [ "${INPUT_PRUNE_VOLUMES:-false}" = 'true' ]; then
+    PRUNE_FLAGS="$PRUNE_FLAGS --volumes"
+  fi
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune $PRUNE_FLAGS; then
     echo "Error: Docker prune failed"
     exit 1
   fi

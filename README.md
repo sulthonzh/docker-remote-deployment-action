@@ -196,6 +196,13 @@ The action includes comprehensive input validation to prevent:
 - **Example**: `true`
 - **⚠️ Warning**: This is destructive and removes unused images, containers, and networks. By default it does NOT remove volumes.
 
+#### `prune_volumes`
+- **Description**: When `docker_prune` is true, also remove unused volumes
+- **Required**: false
+- **Default**: `false`
+- **Example**: `true`
+- **⚠️ Warning**: This is irreversible and will delete all volumes not referenced by at least one container. Has no effect unless `docker_prune` is true.
+
 #### `pre_deployment_command_args`
 - **Description**: Arguments for pre-deployment command (docker-compose mode only). Runs before image pulling and deployment, allowing early validation (e.g., `config` to verify the compose file). Works regardless of `copy_stack_file` setting.
 - **Required**: false
