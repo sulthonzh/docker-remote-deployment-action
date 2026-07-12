@@ -47,7 +47,7 @@ execute_ssh(){
       -p "$INPUT_REMOTE_DOCKER_PORT" \
       "$INPUT_REMOTE_DOCKER_HOST" "$@"; then
     echo "Error: SSH command failed: $*"
-    exit 1
+    return 1
   fi
 }
 
@@ -353,13 +353,23 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
         -P "$INPUT_REMOTE_DOCKER_PORT" \
         "$temp_passwd_file" "$INPUT_REMOTE_DOCKER_HOST:$remote_passwd"; then
       echo "Error: Failed to copy password file to remote host"
-      execute_ssh "rm -f '$remote_passwd' 2>/dev/null || true"
+      # Best-effort cleanup of password file
+      ssh -q -i "$HOME/.ssh/id_rsa" \
+        -o UserKnownHostsFile=/dev/null \
+        -o StrictHostKeyChecking=no \
+        -p "$INPUT_REMOTE_DOCKER_PORT" \
+        "$INPUT_REMOTE_DOCKER_HOST" "rm -f '$remote_passwd' 2>/dev/null || true" 2>/dev/null || true
       cleanup
       exit 1
     fi
     if ! execute_ssh "docker login -u '$INPUT_DOCKER_REGISTRY_USERNAME' --password-file '$remote_passwd' '$INPUT_DOCKER_REGISTRY_URI' && rm -f '$remote_passwd'"; then
       echo "Error: Remote docker login failed"
-      execute_ssh "rm -f '$remote_passwd' 2>/dev/null || true"
+      # Best-effort cleanup of password file; don't let failure here mask the original error
+      ssh -q -i "$HOME/.ssh/id_rsa" \
+        -o UserKnownHostsFile=/dev/null \
+        -o StrictHostKeyChecking=no \
+        -p "$INPUT_REMOTE_DOCKER_PORT" \
+        "$INPUT_REMOTE_DOCKER_HOST" "rm -f '$remote_passwd' 2>/dev/null || true" 2>/dev/null || true
       cleanup
       exit 1
     fi
