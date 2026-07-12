@@ -6,11 +6,21 @@ set -euo pipefail
 temp_passwd_file=""
 remote_passwd=""
 
+# Guard against double-cleanup (signal handler fires, then EXIT fires)
+_cleanup_done=false
+
 # Cleanup function to remove SSH keys and agent
 cleanup() {
+  # Prevent double execution: a signal trap may run cleanup, then EXIT runs it again
+  if [ "$_cleanup_done" = 'true' ]; then
+    return 0
+  fi
+  _cleanup_done=true
   echo "Cleaning up..."
   # Remove remote temporary password file FIRST (needs SSH keys still present)
   # Must run before SSH key removal below, otherwise SSH auth fails silently
+  # remote_passwd is cleared after successful remote login, so this only runs
+  # if the script exited before the login sequence completed
   if [ -n "${remote_passwd+x}" ] && [ -n "$remote_passwd" ] && [ -n "${INPUT_REMOTE_DOCKER_HOST+x}" ] && [ -n "$INPUT_REMOTE_DOCKER_HOST" ]; then
     ssh -q -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
@@ -363,6 +373,8 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
       exit 1
     fi
     if ! execute_ssh "docker login -u '$INPUT_DOCKER_REGISTRY_USERNAME' --password-file '$remote_passwd' '$INPUT_DOCKER_REGISTRY_URI' && rm -f '$remote_passwd'"; then
+      # Password file remains on remote — cleanup() will remove it via SSH
+      # (remote_passwd is intentionally NOT cleared here so cleanup can find it)
       echo "Error: Remote docker login failed"
       # Best-effort cleanup of password file; don't let failure here mask the original error
       ssh -q -i "$HOME/.ssh/id_rsa" \
@@ -373,8 +385,15 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
       cleanup
       exit 1
     fi
+    # Remote password file was already deleted by the && rm -f above.
+    # Clear the variable so cleanup() skips the redundant SSH round-trip to
+    # delete a file that no longer exists. This avoids a wasteful SSH connection
+    # (and potential hang on network issues) during cleanup.
+    remote_passwd=""
   fi
-  # temp_passwd_file will be cleaned up by the cleanup function
+  # Clear local temp password file immediately — no need to keep it until cleanup
+  rm -f "$temp_passwd_file" 2>/dev/null || true
+  temp_passwd_file=""
 fi
 
 # Handle stack file copying and deployment
