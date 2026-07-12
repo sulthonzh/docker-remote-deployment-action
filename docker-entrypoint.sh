@@ -337,11 +337,18 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
     # remote_passwd is initialized at the top of the script so cleanup() can
     # remove it if the script exits before the login/cleanup sequence completes.
     remote_passwd="/tmp/.docker-passwd-$$"
-    scp -q -i "$HOME/.ssh/id_rsa" \
+    # -q suppresses progress output; do NOT redirect stderr — error messages
+    # must remain visible so failures are diagnosable (set -e exits on failure)
+    if ! scp -q -i "$HOME/.ssh/id_rsa" \
         -o UserKnownHostsFile=/dev/null \
         -o StrictHostKeyChecking=no \
         -P "$INPUT_REMOTE_DOCKER_PORT" \
-        "$temp_passwd_file" "$INPUT_REMOTE_DOCKER_HOST:$remote_passwd" 2>/dev/null
+        "$temp_passwd_file" "$INPUT_REMOTE_DOCKER_HOST:$remote_passwd"; then
+      echo "Error: Failed to copy password file to remote host"
+      execute_ssh "rm -f '$remote_passwd' 2>/dev/null || true"
+      cleanup
+      exit 1
+    fi
     if ! execute_ssh "docker login -u '$INPUT_DOCKER_REGISTRY_USERNAME' --password-file '$remote_passwd' '$INPUT_DOCKER_REGISTRY_URI' && rm -f '$remote_passwd'"; then
       echo "Error: Remote docker login failed"
       execute_ssh "rm -f '$remote_passwd' 2>/dev/null || true"
@@ -357,11 +364,14 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
   execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH\"/stacks || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 
-  scp -q -i "$HOME/.ssh/id_rsa" \
+  if ! scp -q -i "$HOME/.ssh/id_rsa" \
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -P "$INPUT_REMOTE_DOCKER_PORT" \
-      "$INPUT_STACK_FILE_NAME" "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"
+      "$INPUT_STACK_FILE_NAME" "$INPUT_REMOTE_DOCKER_HOST:$INPUT_DEPLOY_PATH/stacks/$FILE_NAME"; then
+    echo "Error: Failed to copy stack file to remote host"
+    exit 1
+  fi
 
   execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH\"/stacks/$FILE_NAME \"$INPUT_DEPLOY_PATH\"/$INPUT_STACK_FILE_NAME"
   execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((10#$INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
