@@ -82,11 +82,19 @@ validate_input() {
   fi
 
   # Check for control characters (newline, carriage return, tab, null, etc.)
-  # These can bypass the metacharacter check but still cause command injection via eval
+  # These can bypass the metacharacter check but still cause command injection via eval.
   # Comprehensive check covers: null(NUL), backspace(BS), tab(TAB), newline(LF),
-  # form feed(FF), carriage return(CR), ESC, DEL, and all other control characters
-  if printf '%s' "$input_value" | grep -qE '[\x00-\x1f\x7f]'; then
-    echo "Error: $input_name contains control characters (null, backspace, tab, newline, form feed, carriage return, ESC, DEL, etc.)"
+  # form feed(FF), carriage return(CR), ESC, DEL, and all other control characters.
+  # IMPORTANT: grep -E '[\x00-\x1f\x7f]' does NOT work on BusyBox grep (Alpine Linux),
+  # which is the runtime environment inside this action's Docker container. BusyBox
+  # grep treats \xNN as literal characters, not hex escapes. Use tr + wc instead,
+  # which is POSIX-portable and works identically on BusyBox, GNU, and BSD.
+  # NUL (\000) cannot appear in shell variables (bash truncates at NUL), so we
+  # exclude it from the tr range and rely on the metachar check for edge cases.
+  # Range \001-\037 is octal for bytes 1-31 (SOH through US), \177 is DEL (octal 127).
+  ctrl_count=$(printf '%s' "$input_value" | tr -d '[:print:]' | wc -c)
+  if [ "$ctrl_count" -gt 0 ]; then
+    echo "Error: $input_name contains control characters (tab, newline, carriage return, ESC, DEL, etc.)"
     exit 1
   fi
 
