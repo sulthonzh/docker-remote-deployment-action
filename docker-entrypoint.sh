@@ -83,8 +83,9 @@ validate_input() {
 
   # Check for control characters (newline, carriage return, tab, null, etc.)
   # These can bypass the metacharacter check but still cause command injection via eval
-  # Comprehensive check covers: null, backspace, tab, newline, form feed, carriage return, ESC, and DEL
-  if printf '%s' "$input_value" | grep -qE '[\x00-\x08\x0b-\x1f\x7f]'; then
+  # Comprehensive check covers: null(NUL), backspace(BS), tab(TAB), newline(LF),
+  # form feed(FF), carriage return(CR), ESC, DEL, and all other control characters
+  if printf '%s' "$input_value" | grep -qE '[\x00-\x1f\x7f]'; then
     echo "Error: $input_name contains control characters (null, backspace, tab, newline, form feed, carriage return, ESC, DEL, etc.)"
     exit 1
   fi
