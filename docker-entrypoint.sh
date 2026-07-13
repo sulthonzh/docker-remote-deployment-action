@@ -230,6 +230,16 @@ if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMEN
   validate_env_expansion "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
 fi
 
+# Validate prune_volumes input (boolean: true or false only)
+# Must be validated before docker_prune check
+if [ -z "${INPUT_PRUNE_VOLUMES+x}" ]; then
+  INPUT_PRUNE_VOLUMES=false
+fi
+if [ "$INPUT_PRUNE_VOLUMES" != 'true' ] && [ "$INPUT_PRUNE_VOLUMES" != 'false' ]; then
+  echo "Error: prune_volumes must be 'true' or 'false', got: $INPUT_PRUNE_VOLUMES"
+  exit 1
+fi
+
 # Set default for KEEP_FILES before validating
 if [ -z "${INPUT_KEEP_FILES+x}" ]; then
   INPUT_KEEP_FILES=4
@@ -457,9 +467,9 @@ else
 fi
 
 # Handle Docker system prune AFTER deployment
-if ! [ -z "${INPUT_DOCKER_PRUNE+x}" ] && [ "$INPUT_DOCKER_PRUNE" = 'true' ] ; then
+if [ "${INPUT_DOCKER_PRUNE:-false}" = 'true' ] ; then
   echo "WARNING: This will remove all unused images, containers, and networks."
-  if [ "${INPUT_PRUNE_VOLUMES:-false}" = 'true' ]; then
+  if [ "$INPUT_PRUNE_VOLUMES" = 'true' ]; then
     echo "WARNING: --volumes flag is set. Unused volumes WILL ALSO BE REMOVED. This is irreversible."
   else
     echo "Note: docker system prune -a does NOT remove volumes by default. Set prune_volumes=true to also remove volumes."

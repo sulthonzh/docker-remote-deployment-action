@@ -42,7 +42,7 @@ inputs:
     required: false
     default: 'false'
   prune_volumes:
-    description: 'When docker_prune is true, also remove unused volumes. This is destructive and cannot be undone. Has no effect unless docker_prune is true.'
+    description: 'When docker_prune is true, also remove unused volumes. This is destructive and cannot be undone. Has no effect unless docker_prune is true. Allowed values: true, false. Default: false'
     required: false
     default: 'false'
   pre_deployment_command_args:
