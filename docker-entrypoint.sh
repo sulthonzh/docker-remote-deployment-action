@@ -99,10 +99,11 @@ validate_input() {
   fi
 
   # Check for path traversal attempts (..), absolute paths, and suspicious patterns
-  # Skip validation for args and stack_file_name as they may need special characters
+  # Skip validation for args as it may need special characters
+  # stack_file_name is a filename (not a path) — block '/' to prevent path traversal
   # deploy_path legitimately uses absolute paths (/opt/...) and home expansion (~/...)
   # so it is exempted from the /* and ~* checks, but still checked for ..
-  if [[ "$input_name" != "args" && "$input_name" != "stack_file_name" ]]; then
+  if [[ "$input_name" != "args" ]]; then
     case "$input_value" in
       *..*)
         echo "Error: $input_name contains path traversal patterns (..)"
@@ -113,6 +114,16 @@ validate_input() {
       case "$input_value" in
         /*|~*|'${'*|'$'*)
           echo "Error: $input_name contains potentially dangerous path patterns"
+          exit 1
+          ;;
+      esac
+    fi
+    # stack_file_name is a filename, not a path — block '/' to prevent path traversal
+    # via symlink creation (ln -nfs) and scp destination manipulation
+    if [[ "$input_name" == "stack_file_name" ]]; then
+      case "$input_value" in
+        */*)
+          echo "Error: stack_file_name must be a filename, not a path (contains '/')"
           exit 1
           ;;
       esac
@@ -484,11 +495,11 @@ if [ "${INPUT_DOCKER_PRUNE:-false}" = 'true' ] ; then
     echo "Note: docker system prune -a does NOT remove volumes by default. Set prune_volumes=true to also remove volumes."
   fi
   echo "Proceeding with docker prune automatically..."
-  PRUNE_FLAGS="-a -f"
+  PRUNE_FLAGS=(-a -f)
   if [ "${INPUT_PRUNE_VOLUMES:-false}" = 'true' ]; then
-    PRUNE_FLAGS="$PRUNE_FLAGS --volumes"
+    PRUNE_FLAGS+=(--volumes)
   fi
-  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune $PRUNE_FLAGS; then
+  if ! docker --log-level debug --host "ssh://$INPUT_REMOTE_DOCKER_HOST:$INPUT_REMOTE_DOCKER_PORT" system prune "${PRUNE_FLAGS[@]}"; then
     echo "Error: Docker prune failed"
     exit 1
   fi
