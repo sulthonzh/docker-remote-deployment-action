@@ -250,13 +250,35 @@ if [ -n "${INPUT_PRE_DEPLOYMENT_COMMAND_ARGS+x}" ] && [ -n "$INPUT_PRE_DEPLOYMEN
   validate_env_expansion "pre_deployment_command_args" "$INPUT_PRE_DEPLOYMENT_COMMAND_ARGS"
 fi
 
-# Validate prune_volumes input (boolean: true or false only)
-# Must be validated before docker_prune check
+# Set defaults for boolean inputs BEFORE validation
 if [ -z "${INPUT_PRUNE_VOLUMES+x}" ]; then
   INPUT_PRUNE_VOLUMES=false
 fi
+if [ -z "${INPUT_DOCKER_PRUNE+x}" ]; then
+  INPUT_DOCKER_PRUNE=false
+fi
+if [ -z "${INPUT_COPY_STACK_FILE+x}" ]; then
+  INPUT_COPY_STACK_FILE=false
+fi
+if [ -z "${INPUT_PULL_IMAGES_FIRST+x}" ]; then
+  INPUT_PULL_IMAGES_FIRST=false
+fi
+
+# Validate boolean inputs (must be 'true' or 'false' only)
 if [ "$INPUT_PRUNE_VOLUMES" != 'true' ] && [ "$INPUT_PRUNE_VOLUMES" != 'false' ]; then
   echo "Error: prune_volumes must be 'true' or 'false', got: $INPUT_PRUNE_VOLUMES"
+  exit 1
+fi
+if [ "$INPUT_DOCKER_PRUNE" != 'true' ] && [ "$INPUT_DOCKER_PRUNE" != 'false' ]; then
+  echo "Error: docker_prune must be 'true' or 'false', got: $INPUT_DOCKER_PRUNE"
+  exit 1
+fi
+if [ "$INPUT_COPY_STACK_FILE" != 'true' ] && [ "$INPUT_COPY_STACK_FILE" != 'false' ]; then
+  echo "Error: copy_stack_file must be 'true' or 'false', got: $INPUT_COPY_STACK_FILE"
+  exit 1
+fi
+if [ "$INPUT_PULL_IMAGES_FIRST" != 'true' ] && [ "$INPUT_PULL_IMAGES_FIRST" != 'false' ]; then
+  echo "Error: pull_images_first must be 'true' or 'false', got: $INPUT_PULL_IMAGES_FIRST"
   exit 1
 fi
 
