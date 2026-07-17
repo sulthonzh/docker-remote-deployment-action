@@ -1,6 +1,6 @@
 #!/bin/bash
-set -euo pipefail
 # shellcheck disable=SC2016 # SC2016 false positives: single-quoting is intentional to prevent variable expansion in case/grep patterns
+set -euo pipefail
 
 # Initialize temp files early (before trap) to prevent unbound variable errors in cleanup
 temp_passwd_file=""
