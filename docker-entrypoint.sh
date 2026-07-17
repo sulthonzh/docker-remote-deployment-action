@@ -26,7 +26,7 @@ cleanup() {
       -o UserKnownHostsFile=/dev/null \
       -o StrictHostKeyChecking=no \
       -p "${INPUT_REMOTE_DOCKER_PORT:-22}" \
-      "$INPUT_REMOTE_DOCKER_HOST" "rm -f \"$remote_passwd\" 2>/dev/null || true" 2>/dev/null || true
+      "$INPUT_REMOTE_DOCKER_HOST" "rm -f '$remote_passwd' 2>/dev/null || true" 2>/dev/null || true
   fi
   # Remove docker context (before killing SSH agent)
   docker context rm remote -f 2>/dev/null || true
