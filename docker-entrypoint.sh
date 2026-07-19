@@ -405,7 +405,10 @@ if [ -n "${INPUT_DOCKER_REGISTRY_USERNAME:-}" ] && [ -n "${INPUT_DOCKER_REGISTRY
     # Copy password file to remote, login, then remove it
     # remote_passwd is initialized at the top of the script so cleanup() can
     # remove it if the script exits before the login/cleanup sequence completes.
-    remote_passwd="/tmp/.docker-passwd-$$"
+    # Use $RANDOM + PID for uniqueness: two CI runners deploying to the same
+    # remote host can share the same PID, causing a collision race condition
+    # where one run overwrites or deletes the other's password file.
+    remote_passwd="/tmp/.docker-passwd-$$-${RANDOM}${RANDOM}"
     # -q suppresses progress output; do NOT redirect stderr — error messages
     # must remain visible so failures are diagnosable (set -e exits on failure)
     if ! scp -q -i "$HOME/.ssh/id_rsa" \
