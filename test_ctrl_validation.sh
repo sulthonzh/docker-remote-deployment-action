@@ -6,7 +6,8 @@ validate_input() {
   local input_value="$2"
   
   # Check for control characters using tr + wc
-  ctrl_count=$(printf '%s' "$input_value" | tr -d '[:print:]' | wc -c)
+  ctrl_count=$(printf '%s' "$input_value" | tr -d '[:cntrl:]' | wc -c)
+  ctrl_count=$((${#input_value} - ctrl_count))
   if [ "$ctrl_count" -gt 0 ]; then
     echo "FAIL: $input_name contains control characters (count: $ctrl_count)"
     return 1

@@ -91,8 +91,11 @@ validate_input() {
   # which is POSIX-portable and works identically on BusyBox, GNU, and BSD.
   # NUL (\000) cannot appear in shell variables (bash truncates at NUL), so we
   # exclude it from the tr range and rely on the metachar check for edge cases.
-  # Range \001-\037 is octal for bytes 1-31 (SOH through US), \177 is DEL (octal 127).
-  ctrl_count=$(printf '%s' "$input_value" | tr -d '[:print:]' | wc -c)
+  # Remove control characters (SOH through US, DEL) and count what remains.
+  # [:cntrl:] includes bytes 1-31 (control chars) and 127 (DEL), but NOT NUL (0).
+  ctrl_count=$(printf '%s' "$input_value" | tr -d '[:cntrl:]' | wc -c)
+  # Calculate original length - control count = number of control characters found
+  ctrl_count=$((${#input_value} - ctrl_count))
   if [ "$ctrl_count" -gt 0 ]; then
     echo "Error: $input_name contains control characters (tab, newline, carriage return, ESC, DEL, etc.)"
     exit 1

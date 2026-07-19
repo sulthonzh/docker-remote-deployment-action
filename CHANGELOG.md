@@ -6,7 +6,7 @@
 - Path traversal via `stack_file_name` input (security)
 - SC2086 word splitting on `PRUNE_FLAGS` (security)
 - Control character validation non-functional on BusyBox/Alpine grep
-- Newline/tab injection gap in control character validation
+- Control character validation incorrectly rejected valid inputs containing spaces — fixed to use `[:cntrl:]` class instead of inverse `[:print:]` (which excludes spaces)
 - Validate `prune_volumes` input to prevent unintended destructive operations
 
 ## [1.0.0] - 2026-06-15
