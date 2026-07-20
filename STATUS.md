@@ -1,6 +1,6 @@
 # docker-remote-deployment-action — Status
 
-**Last Updated:** 2026-07-10T12:47:00+07:00 (UTC 2026-07-10 05:47)
+**Last Updated:** 2026-07-21T03:13:00+07:00 (UTC 2026-07-20 20:13)
 **Project Type:** GitHub Action (Docker-based, shell entrypoint)
 **Current Status:** ✅ EXCEPTIONAL (13/13 criteria met)
 
@@ -19,7 +19,7 @@ Minimal example requires only 4 inputs (host, keys, args). Standard GitHub Actio
 ### 3. All tests GREEN (100% pass rate) ✅
 - No unit test framework (shell-based GitHub Action)
 - ShellCheck: 3 info-level SC2016 warnings (all false positives — intentional single-quoting in security patterns, documented in source)
-- Docker build verified: `docker:26.1.0` base image with Docker Compose v2.30.3
+- Docker build verified: `docker:26.1.0` base image with Docker Compose v2.40.3
 - action.yml schema valid
 
 ### 4. Test coverage >= 80% on core logic ✅
@@ -51,7 +51,7 @@ CHANGELOG.md exists with [Unreleased] section and versioned entries (1.1.0, 1.0.
 
 ### 10. Modern stack ✅
 - Docker 26.1.0 (current stable line)
-- Docker Compose v2.30.3 (latest stable)
+- Docker Compose v2.40.3 (latest stable)
 - GitHub Actions Docker runner (`using: docker`)
 - bash with `set -euo pipefail`
 
@@ -77,9 +77,9 @@ README clearly states: SSH-based remote deployment with security validation, sup
 
 ## Architecture Notes
 
-- **Entrypoint:** `docker-entrypoint.sh` (bash, ~420 lines)
+- **Entrypoint:** `docker-entrypoint.sh` (bash, 534 lines)
 - **Base image:** `docker:26.1.0` (Alpine + Docker CLI)
-- **Docker Compose:** v2.30.3 binary (pinned)
+- **Docker Compose:** v2.40.3 binary (pinned)
 - **Deployment modes:** docker-compose, docker-swarm
 - **Cleanup:** trap-based (EXIT, SIGINT, SIGTERM) — removes SSH keys, kills agent, removes Docker context
 
