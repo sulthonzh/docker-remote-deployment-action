@@ -1,7 +1,10 @@
 #!/bin/bash
 # Test boolean validation logic
+# Tracks pass/fail counts and exits non-zero if any test expectation is wrong
 
-# Simulate the validation logic
+PASS_COUNT=0
+FAIL_COUNT=0
+
 validate_booleans() {
   # Set defaults
   INPUT_PRUNE_VOLUMES="${INPUT_PRUNE_VOLUMES:-false}"
@@ -31,17 +34,46 @@ validate_booleans() {
   return 0
 }
 
+# Helper: expect validation to PASS (should return 0)
+expect_pass() {
+  if "$@" >/dev/null 2>&1; then
+    echo "OK (passed): $*"
+    ((PASS_COUNT++))
+  else
+    echo "UNEXPECTED FAIL: $*"
+    ((FAIL_COUNT++))
+  fi
+}
+
+# Helper: expect validation to FAIL (should return 1)
+expect_fail() {
+  if "$@" >/dev/null 2>&1; then
+    echo "UNEXPECTED PASS: $*"
+    ((FAIL_COUNT++))
+  else
+    echo "OK (rejected): $*"
+    ((PASS_COUNT++))
+  fi
+}
+
 # Test valid inputs
 echo "=== Testing valid inputs ==="
-INPUT_PRUNE_VOLUMES=true INPUT_DOCKER_PRUNE=false INPUT_COPY_STACK_FILE=true INPUT_PULL_IMAGES_FIRST=false validate_booleans
+INPUT_PRUNE_VOLUMES=true INPUT_DOCKER_PRUNE=false INPUT_COPY_STACK_FILE=true INPUT_PULL_IMAGES_FIRST=false \
+  expect_pass validate_booleans
 
 # Test defaults (unset inputs)
 echo "=== Testing defaults (unset inputs) ==="
 unset INPUT_PRUNE_VOLUMES INPUT_DOCKER_PRUNE INPUT_COPY_STACK_FILE INPUT_PULL_IMAGES_FIRST
-validate_booleans
+expect_pass validate_booleans
 
 # Test invalid inputs
 echo "=== Testing invalid inputs ==="
-INPUT_PRUNE_VOLUMES=yes INPUT_DOCKER_PRUNE=no INPUT_COPY_STACK_FILE=1 INPUT_PULL_IMAGES_FIRST=0 validate_booleans
+INPUT_PRUNE_VOLUMES=yes INPUT_DOCKER_PRUNE=no INPUT_COPY_STACK_FILE=1 INPUT_PULL_IMAGES_FIRST=0 \
+  expect_fail validate_booleans
 
-echo "Done"
+echo ""
+echo "========================================="
+echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
+echo "========================================="
+
+[ "$FAIL_COUNT" -eq 0 ]

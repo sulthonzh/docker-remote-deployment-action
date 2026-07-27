@@ -1,11 +1,14 @@
 #!/bin/bash
 
 # Test script to validate the pattern matching
+# Tracks pass/fail counts and exits non-zero if any test expectation is wrong
+
+PASS_COUNT=0
+FAIL_COUNT=0
 
 validate_input() {
   local input_name="$1"
   local input_value="$2"
-  
   # Check for control characters
   case "$input_value" in
     *$'\n'*|*$'\r'*|*$'\t'*)
@@ -35,27 +38,58 @@ validate_input() {
   return 0
 }
 
-# Test cases
-echo "=== Testing literal strings with $ ==="
-validate_input "test1" '$HOME' 
-validate_input "test2" '${USER}'
-validate_input "test3" '$(whoami)'
-validate_input "test4" '$(echo exploit)'
+# Helper: expect validation to REJECT input (should return 1)
+expect_reject() {
+  local input_name="$1"
+  local input_value="$2"
+  if validate_input "$input_name" "$input_value" >/dev/null 2>&1; then
+    echo "UNEXPECTED PASS: $input_name='$input_value' should have been rejected"
+    ((FAIL_COUNT++))
+  else
+    echo "OK (rejected): $input_name='$input_value'"
+    ((PASS_COUNT++))
+  fi
+}
+
+# Helper: expect validation to ACCEPT input (should return 0)
+expect_accept() {
+  local input_name="$1"
+  local input_value="$2"
+  if validate_input "$input_name" "$input_value" >/dev/null 2>&1; then
+    echo "OK (accepted): $input_name='$input_value'"
+    ((PASS_COUNT++))
+  else
+    echo "UNEXPECTED REJECT: $input_name='$input_value' should have been accepted"
+    ((FAIL_COUNT++))
+  fi
+}
+
+echo "=== Testing literal strings with $ (should be rejected) ==="
+expect_reject "test1" '$HOME'
+expect_reject "test2" '${USER}'
+expect_reject "test3" '$(whoami)'
+expect_reject "test4" '$(echo exploit)'
 
 echo ""
 echo "=== Testing strings that should PASS ==="
-validate_input "test5" "normal_path.txt"
-validate_input "test6" "docker-compose.yml"
-validate_input "deploy_path" "/opt/app"
-validate_input "deploy_path" "~/apps/myapp"
+expect_accept "test5" "normal_path.txt"
+expect_accept "test6" "docker-compose.yml"
+expect_accept "deploy_path" "/opt/app"
+expect_accept "deploy_path" "~/apps/myapp"
 
 echo ""
 echo "=== Testing absolute paths (should FAIL for non-deploy_path) ==="
-validate_input "test7" "/absolute/path"
-validate_input "test8" "~/home/path"
+expect_reject "test7" "/absolute/path"
+expect_reject "test8" "~/home/path"
 
 echo ""
 echo "=== Testing path traversal (should FAIL) ==="
-validate_input "test9" "../../etc/passwd"
-validate_input "test10" "path/../etc"
+expect_reject "test9" "../../etc/passwd"
+expect_reject "test10" "path/../etc"
 
+echo ""
+echo "========================================="
+echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
+echo "========================================="
+
+[ "$FAIL_COUNT" -eq 0 ]
