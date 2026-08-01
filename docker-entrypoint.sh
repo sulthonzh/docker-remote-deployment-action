@@ -455,7 +455,7 @@ fi
 
 # Handle stack file copying and deployment
 if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' ] ; then
-  execute_ssh "mkdir -p \"$INPUT_DEPLOY_PATH\"/stacks || true"
+  execute_ssh "mkdir -p $INPUT_DEPLOY_PATH/stacks || true"
   FILE_NAME="docker-stack-$(date +%Y%m%d%s).yaml"
 
   if ! scp -q -i "$HOME/.ssh/id_rsa" \
@@ -467,8 +467,8 @@ if ! [ -z "${INPUT_COPY_STACK_FILE+x}" ] && [ "$INPUT_COPY_STACK_FILE" = 'true' 
     exit 1
   fi
 
-  execute_ssh "ln -nfs \"$INPUT_DEPLOY_PATH\"/stacks/$FILE_NAME \"$INPUT_DEPLOY_PATH\"/$INPUT_STACK_FILE_NAME"
-  execute_ssh "ls -t \"$INPUT_DEPLOY_PATH\"/stacks/docker-stack-* 2>/dev/null | tail -n +$((10#$INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
+  execute_ssh "ln -nfs $INPUT_DEPLOY_PATH/stacks/$FILE_NAME $INPUT_DEPLOY_PATH/$INPUT_STACK_FILE_NAME"
+  execute_ssh "ls -t $INPUT_DEPLOY_PATH/stacks/docker-stack-* 2>/dev/null | tail -n +$((10#$INPUT_KEEP_FILES+1)) | while read -r file; do rm -f \"\$file\"; done 2>/dev/null || true"
 
   # Pre-deployment validation should run BEFORE pulling images to fail fast.
   # E.g., 'docker-compose config' validates the file — if it fails, skip the
