@@ -22,6 +22,7 @@ jobs:
   secret-scan:
     name: "🔒 Secret Scan"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       secrets_found: ${{ steps.scan.outputs.found }}
     steps:
@@ -30,7 +31,7 @@ jobs:
           fetch-depth: 0
       - name: Scan diff for secrets
         id: scan
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: secret-scan
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -43,6 +44,7 @@ jobs:
   ai-review:
     name: "🤖 AI Review"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: secret-scan
     outputs:
       approved: ${{ steps.review.outputs.approved }}
@@ -52,7 +54,7 @@ jobs:
           fetch-depth: 0
       - name: Detect project context
         id: context
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: detect-context
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -67,7 +69,7 @@ jobs:
           fi
       - name: Run AI review
         id: review
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: ai-review
           model: ${{ steps.model.outputs.model }}
@@ -79,6 +81,7 @@ jobs:
   quality-gate:
     name: "✅ Quality Gate"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [secret-scan, ai-review]
     outputs:
       passed: ${{ steps.gate.outputs.passed }}
@@ -88,13 +91,13 @@ jobs:
           fetch-depth: 0
       - name: Run quality checks
         id: gate
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: quality-gate
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Post status
         if: always()
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: post-status
           passed: ${{ steps.gate.outputs.passed }}
@@ -103,6 +106,7 @@ jobs:
   auto-merge:
     name: "🔀 Auto-Merge"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [ai-review, quality-gate]
     if: >-
       needs.ai-review.outputs.approved == 'true' &&
@@ -111,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Approve and merge
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: auto-merge
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -119,6 +123,7 @@ jobs:
   auto-release:
     name: "📦 Auto-Release"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main'
@@ -127,7 +132,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Detect and release
-        uses: sulthonzh/code-reviewer@main
+        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
         with:
           command: auto-release
           github-token: ${{ secrets.GITHUB_TOKEN }}
