@@ -6,9 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   shell-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Lint shell script
@@ -17,6 +21,7 @@ jobs:
 
   dockerfile-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Lint Dockerfile
@@ -25,6 +30,7 @@ jobs:
 
   validate-yaml:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Validate action.yml
@@ -35,6 +41,7 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Security scan with ShellCheck
@@ -48,6 +55,7 @@ jobs:
 
   build-image:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [shell-lint, dockerfile-lint, validate-yaml]
     steps:
       - uses: actions/checkout@v4
