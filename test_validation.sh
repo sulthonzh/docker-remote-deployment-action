@@ -32,6 +32,16 @@ validate_input() {
           return 1
           ;;
       esac
+    else
+      # Mirrors docker-entrypoint.sh: deploy_path is interpolated UNQUOTED into
+      # remote commands (mkdir -p, ln -nfs, ls -t rotation, scp dest), so any
+      # whitespace would word-split into multiple paths. Reject it.
+      case "$input_value" in
+        *[[:space:]]*)
+          echo "FAIL: Whitespace in $input_name: '$input_value'"
+          return 1
+          ;;
+      esac
     fi
   fi
   echo "PASS: $input_name='$input_value'"
@@ -78,6 +88,13 @@ expect_accept "deploy_path" "/opt/app"
 expect_accept "deploy_path" "~/apps/myapp"
 
 echo ""
+echo "=== Testing deploy_path whitespace (should FAIL — unquoted interpolation) ==="
+expect_reject "deploy_path" "~/my deployments"
+expect_reject "deploy_path" "/opt/my app"
+expect_reject "deploy_path" $'/opt/app\tv2'
+expect_accept "deploy_path" "/opt/deep/nested/path"
+
+
 echo "=== Testing absolute paths (should FAIL for non-deploy_path) ==="
 expect_reject "test7" "/absolute/path"
 expect_reject "test8" "~/home/path"
