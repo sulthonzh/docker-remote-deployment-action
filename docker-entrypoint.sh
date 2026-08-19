@@ -121,6 +121,18 @@ validate_input() {
           ;;
       esac
     fi
+    # deploy_path is interpolated UNQUOTED into remote commands (mkdir -p, ln -nfs,
+    # ls -t pruning pipeline, scp destination, DEPLOYMENT_COMMAND). A space would
+    # word-split into multiple paths, silently creating wrong directories and
+    # breaking the versioned symlink/rotation logic. Reject with a clear error.
+    if [[ "$input_name" == "deploy_path" ]]; then
+      case "$input_value" in
+        *[[:space:]]*)
+          echo "Error: deploy_path must not contain whitespace (it is interpolated unquoted into remote commands): $input_value"
+          exit 1
+          ;;
+      esac
+    fi
     # stack_file_name is a filename, not a path — block '/' to prevent path traversal
     # via symlink creation (ln -nfs) and scp destination manipulation
     if [[ "$input_name" == "stack_file_name" ]]; then
