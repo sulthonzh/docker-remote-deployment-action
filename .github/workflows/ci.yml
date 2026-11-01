@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   shell-lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
         shell: bash
 
   dockerfile-lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
         shell: bash
 
   validate-yaml:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
         shell: bash
 
   security-scan:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
         shell: bash
 
   build-image:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     needs: [shell-lint, dockerfile-lint, validate-yaml]
     steps:
