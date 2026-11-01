@@ -21,7 +21,7 @@ env:
 jobs:
   secret-scan:
     name: "🔒 Secret Scan"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     outputs:
       secrets_found: ${{ steps.scan.outputs.found }}
@@ -43,7 +43,7 @@ jobs:
 
   ai-review:
     name: "🤖 AI Review"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     needs: secret-scan
     outputs:
@@ -80,7 +80,7 @@ jobs:
 
   quality-gate:
     name: "✅ Quality Gate"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     needs: [secret-scan, ai-review]
     outputs:
@@ -105,7 +105,7 @@ jobs:
 
   auto-merge:
     name: "🔀 Auto-Merge"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     needs: [ai-review, quality-gate]
     if: >-
@@ -122,7 +122,7 @@ jobs:
 
   auto-release:
     name: "📦 Auto-Release"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, svr1]
     timeout-minutes: 15
     if: >-
       github.event_name == 'push' &&
