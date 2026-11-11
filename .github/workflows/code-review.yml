@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
       - name: Scan diff for secrets
         id: scan
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: secret-scan
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 0
       - name: Detect project context
         id: context
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: detect-context
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -69,7 +69,7 @@ jobs:
           fi
       - name: Run AI review
         id: review
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: ai-review
           model: ${{ steps.model.outputs.model }}
@@ -91,13 +91,13 @@ jobs:
           fetch-depth: 0
       - name: Run quality checks
         id: gate
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: quality-gate
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Post status
         if: always()
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: post-status
           passed: ${{ steps.gate.outputs.passed }}
@@ -115,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Approve and merge
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: auto-merge
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -132,7 +132,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Detect and release
-        uses: sulthonzh/code-reviewer@c9301021012f94d42f1954590498e96b09864e72
+        uses: sulthonzh/code-reviewer@main
         with:
           command: auto-release
           github-token: ${{ secrets.GITHUB_TOKEN }}
